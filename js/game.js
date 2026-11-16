@@ -50,7 +50,7 @@
   let cw = 0, ch = 0, dpr = 1;
   function resize() {
     const r = canvas.getBoundingClientRect();
-    dpr = Math.min(2.5, window.devicePixelRatio || 1);
+    dpr = Math.min(store.get('view', '2d') === '3d' ? 1.5 : 2, window.devicePixelRatio || 1);
     cw = r.width; ch = r.height;
     canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
   }
@@ -60,7 +60,7 @@
   // ---------- 상태 ----------
   let state = 'title';     // title | calib | play | arrived
   let stateBeforeCalib = 'play';
-  let stageIdx = 0, track = null, trackPath = null;
+  let stageIdx = 0, track = null, trackPath = null, trackChunks = [];
   let micOk = false, calibrated = false;
   let mode = 'mic';        // mic | buttons
   let view = store.get('view', '2d');
@@ -104,6 +104,23 @@
     // 길 그림: 끊긴 구간은 비우고, 갈림길도 같이
     trackPath = new Path2D();
     const addPoly = (P) => { let on = false; for (const p of P) { if (p.gap) { on = false; continue; } if (on) trackPath.lineTo(p.x, p.y); else { trackPath.moveTo(p.x, p.y); on = true; } } };
+    // 화면 근처만 그리려고 길을 40점씩 조각내 둠 (조각끼리 한 점 겹침)
+    trackChunks = [];
+    const chunkPoly = (P) => {
+      let cur = null;
+      const flush = () => { if (cur && cur.n > 1) trackChunks.push(cur); cur = null; };
+      for (let k = 0; k < P.length; k++) {
+        const p = P[k];
+        if (p.gap) { flush(); continue; }
+        if (!cur) cur = { path: new Path2D(), n: 0, x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+        if (cur.n === 0) cur.path.moveTo(p.x, p.y); else cur.path.lineTo(p.x, p.y);
+        cur.n++; cur.x0 = Math.min(cur.x0, p.x); cur.y0 = Math.min(cur.y0, p.y); cur.x1 = Math.max(cur.x1, p.x); cur.y1 = Math.max(cur.y1, p.y);
+        if (cur.n >= 40) { flush(); k--; }   // 다음 조각은 이 점에서 다시 시작
+      }
+      flush();
+    };
+    chunkPoly(track.pts);
+    if (track.branch) chunkPoly(track.branch.pts);
     addPoly(track.pts);
     if (track.branch) addPoly(track.branch.pts);
     // 바닥(얼음/진흙)·쉿 구간 그림
@@ -141,6 +158,7 @@
       air: null, z: 0, peakI: 0, wake: 0, wakeTo: 0, zoneStill: 0, fork: false, forkHinted: false,
     });
     track.quiet.forEach((q) => (q.noise = 0));
+    stuckT = 0; stuckS = gs;     // 다시 시작했으니 갇힘 판단도 새로
   }
   const curPts = () => (car.pi ? track.branch.pts : track.pts);
   const curTurns = () => (car.pi ? track.branch.turns : track.turns);
@@ -350,6 +368,7 @@
 
   function nightIntro() { if (track.night) flash('밤이에요! 소리 내면 깜깜해져', 2.2); }
   function startPlay() {
+    openSheet(null);
     show(ui.title, false); show(ui.calib, false); show(ui.arrive, false);
     show(ui.hud, true);
     show(ui.pad, mode === 'buttons');
@@ -410,6 +429,7 @@
     beginCount(stage, wait);
   };
   function beginCount(stage, wait) {
+    openSheet(null);
     stopPlayback();
     show(ui.arrive, false); show(ui.calib, false); show(ui.title, false);
     show(ui.hud, true); show(ui.pad, mode === 'buttons');
@@ -429,7 +449,7 @@
     joining = false; ui.roomMake.disabled = ui.roomJoin.disabled = false;
     ui.roomMsg.textContent = r.ok ? '친구에게 링크를 보내 줘. 다 모이면 게임 안에서 「같이 출발」!' : r.why;
     // 친구 방에 들어간 거면 창을 닫고 바로 「시작」 누를 수 있게
-    if (r.ok && joinedByCode) { openSheet(null); ui.titleMsg.textContent = '방 ' + Net.code + '에 들어왔어요! 「시작」을 눌러 줘'; }
+    if (r.ok && joinedByCode && state === 'title') { openSheet(null); ui.titleMsg.textContent = '방 ' + Net.code + '에 들어왔어요! 「시작」을 눌러 줘'; }
     renderRoom();
     if (r.ok) setupVoice();
   }
@@ -495,6 +515,7 @@
       show(ui.calib, false);
       startPlay();
       flash('지난번 보정을 써요 · 「보정」으로 다시', 2.4);
+      if (pendingStart) { const ps = pendingStart; pendingStart = null; beginCount(ps.stage, Math.max(1500, ps.at - performance.now())); }
       return;
     }
     if (c.t < t1) {
@@ -540,7 +561,7 @@
 
   // ---------- 시점 ----------
   function applyView() { ui.view.textContent = view === '3d' ? '위' : '3D'; ui.view.setAttribute('aria-label', view === '3d' ? '위에서 보기' : '뒤에서 보기'); }
-  ui.view.addEventListener('click', () => { view = view === '3d' ? '2d' : '3d'; store.set('view', view); applyView(); });
+  ui.view.addEventListener('click', () => { view = view === '3d' ? '2d' : '3d'; store.set('view', view); applyView(); resize(); });
   applyView();
 
   // ---------- 도착 ----------
@@ -693,7 +714,7 @@
 
     // 엔진
     if (vf < 0) vf = Math.min(0, vf + 300 * dt);           // 벽에 튕겨 뒤로 밀린 것 회복
-    else if (state === 'arrived') vf = Math.max(0, vf - 520 * dt);   // 도착: 부드럽게 브레이크
+    else if (state === 'arrived') vf = Math.max(0, vf - Math.max(520, (vf * vf) / 300) * dt);   // 도착: 길 끝(230px) 전에 멈추게
     else if (type === 'boong') {
       car.coastV0 = -1;
       const k = Math.min(1, inten);
@@ -905,7 +926,7 @@
   }
 
   // 갇힘 구조: 붕을 하는데도 3초 동안 앞으로 못 가면(나무·벽 앞에 서서 돌 수 없을 때) 조금 뒤 길 가운데서 다시
-  let stuckT = 0, stuckS = 0;
+  let stuckT = 0, stuckS = 0, rescueN = 0;
   function stepStuck(dt, type) {
     const nearDoor = track.doors.some((d) => d.open <= 0 && car.pi === 0 && car.s > d.s - DOOR_RANGE - 40 && car.s < d.s + 10);
     if (type !== 'boong' || nearDoor || car.air) { stuckT = 0; stuckS = car.s; return; }
@@ -918,6 +939,7 @@
       stuckS = car.s;
       car.blink = 1.2; Sfx.respawn();
       flash('끼었네! 다시 해 보자', 1.5);
+      rescueN++;
     }
   }
 
@@ -1040,9 +1062,17 @@
   function drawWorld2D() {
     const W = BB.ROAD_W, G = BB.GRASS_W;
     g.lineJoin = 'round'; g.lineCap = 'round';
+    // 화면에 보이는 범위(넉넉히)만
+    const VR = Math.hypot(cw, ch) / cam.z + 140;
+    const vx0 = cam.x - VR, vx1 = cam.x + VR, vy0 = cam.y - VR, vy1 = cam.y + VR;
+    const inView = (x, y, m) => x > vx0 - m && x < vx1 + m && y > vy0 - m && y < vy1 + m;
+    const vis = new Path2D();
+    for (const c of trackChunks) if (c.x1 > vx0 && c.x0 < vx1 && c.y1 > vy0 && c.y0 < vy1) vis.addPath(c.path);
+    const trackPath = vis;
 
     g.fillStyle = track.night ? 'rgba(120,130,200,.25)' : 'rgba(255,255,255,.75)';
     for (const c of track.clouds) {
+      if (!inView(c.x, c.y, 120)) continue;
       g.beginPath();
       g.arc(c.x, c.y, c.r, 0, 7); g.arc(c.x + c.r * 0.9, c.y + c.r * 0.2, c.r * 0.7, 0, 7); g.arc(c.x - c.r * 0.9, c.y + c.r * 0.25, c.r * 0.6, 0, 7);
       g.fill();
@@ -1078,7 +1108,7 @@
     g.lineCap = 'round';
 
     const fc = ['#ffffff', '#ffd84d', '#ff9ec4'];
-    for (const f of track.flowers) { g.fillStyle = fc[f.c]; g.beginPath(); g.arc(f.x, f.y, 3, 0, 7); g.fill(); }
+    for (const f of track.flowers) { if (!inView(f.x, f.y, 0)) continue; g.fillStyle = fc[f.c]; g.beginPath(); g.arc(f.x, f.y, 3, 0, 7); g.fill(); }
 
     g.setLineDash([26, 24]); g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 5; g.stroke(trackPath); g.setLineDash([]);
 
@@ -1150,12 +1180,22 @@
       g.restore();
     }
   }
+  // 밤 덮개: 불빛 정사각형 안에만 그라데이션, 바깥은 단색 사각형 4개 (느린 폰에서 훨씬 빠름)
   function nightOverlay(cx, cy, R) {
-    const gr = g.createRadialGradient(cx, cy, R * 0.15, cx, cy, R);
-    gr.addColorStop(0, 'rgba(10,12,40,0)');
-    gr.addColorStop(0.6, 'rgba(10,12,40,.35)');
-    gr.addColorStop(1, 'rgba(10,12,40,.94)');
-    g.fillStyle = gr; g.fillRect(0, 0, cw, ch);
+    const DARK = 'rgba(10,12,40,.94)';
+    const x0 = Math.max(0, cx - R), y0 = Math.max(0, cy - R), x1 = Math.min(cw, cx + R), y1 = Math.min(ch, cy + R);
+    g.fillStyle = DARK;
+    if (y0 > 0) g.fillRect(0, 0, cw, y0);
+    if (y1 < ch) g.fillRect(0, y1, cw, ch - y1);
+    if (x0 > 0) g.fillRect(0, y0, x0, y1 - y0);
+    if (x1 < cw) g.fillRect(x1, y0, cw - x1, y1 - y0);
+    if (x1 > x0 && y1 > y0) {
+      const gr = g.createRadialGradient(cx, cy, R * 0.15, cx, cy, R);
+      gr.addColorStop(0, 'rgba(10,12,40,0)');
+      gr.addColorStop(0.6, 'rgba(10,12,40,.35)');
+      gr.addColorStop(1, DARK);
+      g.fillStyle = gr; g.fillRect(x0, y0, x1 - x0, y1 - y0);
+    }
   }
 
   function drawTrees2D() {
@@ -1361,7 +1401,7 @@
     if (track.night) {
       // 소리를 낼수록 밝게 (켜질 땐 빠르게, 꺼질 땐 천천히)
       // 밤: 소리를 내면 불이 어두워지고(빠르게), 조용히 해야 다시 밝아짐(천천히)
-      const ty = inputType(), want = state !== 'play' || ty === 'none' ? 1 : Math.max(0.03, 0.3 - 0.3 * Math.min(1, inputIntensity()));
+      const ty = inputType(), want = state !== 'play' || ty === 'none' ? 1 : mode === 'buttons' ? 0.3 : Math.max(0.03, 0.3 - 0.3 * Math.min(1, inputIntensity()));
       light += (want - light) * Math.min(1, dt * (want < light ? 9 : 0.9));
     }
     if (car.blink > 0) car.blink -= dt;
@@ -1458,7 +1498,7 @@
 
   // 테스트/디버그용
   window.BBdebug = {
-    dbg, simStep, keyDir, padState, setTilt(v) { tilt = v; }, aheadPoint, get jumpOK() { return jumpOK; }, get quietOK() { return quietOK; }, get light() { return light; },
+    dbg, simStep, keyDir, padState, setTilt(v) { tilt = v; }, aheadPoint, get jumpOK() { return jumpOK; }, get quietOK() { return quietOK; }, get light() { return light; }, get rescueN() { return rescueN; },
     get state() { return state; }, car, get track() { return track; }, loadStage,
     startPlay(m) { mode = m || 'buttons'; startPlay(); }, startCalibration, get stageIdx() { return stageIdx; },
     get runT() { return runT; }, get stars() { return stars; }, setView(v) { view = v; applyView(); },

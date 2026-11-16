@@ -42,11 +42,16 @@
     }
 
     const list = [];
+    // 화면 밖·너무 먼 조각은 아예 안 그림 (느린 폰 대비)
     function quad(ws, fill, bias) {
-      const c = clip(ws.map((p) => cam(p[0], p[1], p[2] || 0)));
+      const cs = ws.map((p) => cam(p[0], p[1], p[2] || 0));
+      if (cs.every((q) => q[2] < NEAR) || cs.every((q) => q[2] > 2200)) return;
+      const c = clip(cs);
       if (c.length < 3) return;
+      const pts = c.map(scr);
+      if (pts.every((q) => q[0] < -10) || pts.every((q) => q[0] > cw + 10) || pts.every((q) => q[1] > ch + 10) || pts.every((q) => q[1] < -10)) return;
       let z = 0; c.forEach((p) => (z += p[2])); z /= c.length;
-      list.push({ z: z + (bias || 0), fill, pts: c.map(scr) });
+      list.push({ z: z + (bias || 0), fill, pts });
     }
     function sprite(wx, wy, wz, fn, bias) {
       const c = cam(wx, wy, wz);
@@ -58,18 +63,23 @@
     // 길 조각
     const P = track.pts;
     const mainI = S.mainI != null ? S.mainI : car.segI;
-    const i0 = Math.max(0, mainI - 16), i1 = Math.min(P.length - 1, mainI + 230);
-    const STEP = 2;
+    const i0 = Math.max(0, mainI - 16), i1 = Math.min(P.length - 1, mainI + 210);
     const surfOf = (ss) => { for (const q of track.surf) if (ss >= q.s0 && ss <= q.s1) return q.kind; return null; };
     const quietOf = (ss) => track.quiet.some((q) => ss >= q.s0 && ss <= q.s1);
-    function strip(PP, a0, a1, isMain) {
-      for (let i = a0; i < a1; i += STEP) {
-        const a = PP[i], b = PP[Math.min(a1, i + STEP)];
-        if (a.gap || b.gap) continue;
+    // 가까운 곳은 촘촘히(2칸), 멀수록 듬성듬성(4·8칸). 이음새는 다음 조각과 2px 겹쳐 메움
+    function strip(PP, a0, a1, isMain, near) {
+      let i = a0;
+      while (i < a1) {
+        const far = Math.abs(i - near);
+        const step = far < 50 ? 2 : far < 120 ? 4 : 8;
+        const a = PP[i], bi = Math.min(a1, i + step), b0 = PP[bi];
+        i = bi;
+        if (a.gap || b0.gap) continue;
+        const fb = T.fwd(b0.h), b = { x: b0.x + fb.x * 2, y: b0.y + fb.y * 2, h: b0.h };
         const ra = T.right(a.h), rb = T.right(b.h);
         const edge = (p, r, o, z) => [p.x + r.x * o, p.y + r.y * o, z || 0];
         const band = Math.floor(a.s / 48) % 2;
-        for (const sd of [-1, 1]) {
+        if (far < 90) for (const sd of [-1, 1]) {
           const o = sd * (W / 2 + G);
           quad([edge(a, ra, o, 0), edge(b, rb, o, 0), edge(b, rb, o, -40), edge(a, ra, o, -40)], '#5d9a4a', 3);
         }
@@ -81,12 +91,12 @@
         else if (sf === 'mud') col = band ? '#9c7650' : '#8f6b47';
         else if (isMain && quietOf(a.s)) col = band ? '#c5b3e0' : '#bba8d8';
         quad([edge(a, ra, -W / 2), edge(b, rb, -W / 2), edge(b, rb, W / 2), edge(a, ra, W / 2)], col, 0);
-        if (!sf && Math.floor(a.s / 25) % 2 === 0) quad([edge(a, ra, -3), edge(b, rb, -3), edge(b, rb, 3), edge(a, ra, 3)], 'rgba(255,255,255,.8)', -1);
+        if (!sf && far < 120 && Math.floor(a.s / 25) % 2 === 0) quad([edge(a, ra, -3), edge(b, rb, -3), edge(b, rb, 3), edge(a, ra, 3)], 'rgba(255,255,255,.8)', -1);
       }
     }
-    strip(P, i0, i1, true);
+    strip(P, i0, i1, true, mainI);
     const B = track.branch;
-    if (B && car.s > B.sA - 1600 && car.s < B.sB + 400) strip(B.pts, 0, B.pts.length - 1, false);
+    if (B && car.s > B.sA - 1600 && car.s < B.sB + 400) strip(B.pts, 0, B.pts.length - 1, false, car.pi ? car.segI : 0);
 
     // 점프대: 앞쪽이 올라간 경사면
     for (const gp of track.gaps) {
@@ -200,8 +210,6 @@
       g.moveTo(it.pts[0][0], it.pts[0][1]);
       for (let i = 1; i < it.pts.length; i++) g.lineTo(it.pts[i][0], it.pts[i][1]);
       g.closePath(); g.fill();
-      // 이음새 틈 메우기
-      g.strokeStyle = it.fill; g.lineWidth = 1; g.stroke();
     }
     return out;
   }

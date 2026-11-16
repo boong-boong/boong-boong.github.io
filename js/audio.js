@@ -246,9 +246,9 @@
     stopRecording(true);
     if (!stream || !window.MediaRecorder) return false;
     try {
-      chunks = [];
+      const mine = (chunks = []);
       rec = new MediaRecorder(stream);
-      rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      rec.ondataavailable = (e) => { if (e.data && e.data.size) mine.push(e.data); };
       rec.start(500);
       return true;
     } catch (e) { rec = null; return false; }
@@ -256,11 +256,11 @@
   function stopRecording(discard) {
     return new Promise((resolve) => {
       if (!rec || rec.state === 'inactive') { rec = null; resolve(discard ? null : recUrl); return; }
-      const r = rec; rec = null;
+      const r = rec, mine = chunks; rec = null;   // 이 녹음의 조각 (다음 녹음이 바로 시작돼도 안 섞이게)
       r.onstop = () => {
         if (discard) { resolve(null); return; }
         if (recUrl) URL.revokeObjectURL(recUrl);
-        recUrl = chunks.length ? URL.createObjectURL(new Blob(chunks, { type: r.mimeType || 'audio/webm' })) : null;
+        recUrl = mine.length ? URL.createObjectURL(new Blob(mine, { type: r.mimeType || 'audio/webm' })) : null;
         resolve(recUrl);
       };
       try { r.stop(); } catch (e) { resolve(null); }
