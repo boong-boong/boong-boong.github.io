@@ -176,3 +176,16 @@ button:focus-visible { outline: 3px solid #3a3350; outline-offset: 3px; }
 button.mid.small { font-size: 16px; padding: 7px 16px; box-shadow: 0 3px 0 rgba(0,0,0,.15); }
 .roomInfo { font-size: 18px; background: rgba(255,255,255,.9); border-radius: 14px; padding: 6px 14px; line-height: 1.4; max-width: 300px; }
 .roomInfo b { color: #e8673c; letter-spacing: 2px; }
+
+.stagePick { display: flex; align-items: center; gap: 10px; }
+button.round.big2 { width: 48px; height: 48px; font-size: 18px; }
+.stInfo {
+  width: 190px; background: rgba(255,255,255,.9); border-radius: 18px; padding: 8px 10px;
+  box-shadow: 0 3px 0 rgba(0,0,0,.12); display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+.stTier { font-size: 13px; color: #fff; background: #8a7fb0; border-radius: 999px; padding: 1px 10px; }
+.stTier[data-t="입문"] { background: #69b85a; } .stTier[data-t="새 요소"] { background: #4dabf7; }
+.stTier[data-t="중급"] { background: #f59f00; } .stTier[data-t="상급"] { background: #ff922b; }
+.stTier[data-t="고급"] { background: #e8673c; } .stTier[data-t="최고"] { background: #c2255c; }
+.stName { font-size: 22px; white-space: nowrap; }
+.stBest { font-size: 13px; opacity: .75; min-height: 1.2em; font-variant-numeric: tabular-nums; }

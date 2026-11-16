@@ -35,7 +35,7 @@
     horn: $('hornBtn'), view: $('viewBtn'), recal: $('recalBtn'), home: $('homeBtn'),
     pad: $('pad'), padL: $('padLeft'), padR: $('padRight'), padB: $('padBoong'), padK: $('padKkiik'),
     bubble: $('bubble'),
-    title: $('title'), colors: $('colors'), stages: $('stages'), start: $('startBtn'), titleMsg: $('titleMsg'),
+    title: $('title'), colors: $('colors'), stages: $('stages'), stTier: $('stTier'), stName: $('stName'), stBest: $('stBest'), stPrev: $('stPrev'), stNext: $('stNext'), start: $('startBtn'), titleMsg: $('titleMsg'),
     calib: $('calib'), calibText: $('calibText'), calibFill: $('calibFill'), calibSub: $('calibSub'),
     roomBox: $('roomBox'), roomOut: $('roomOut'), roomIn: $('roomIn'), roomInfo: $('roomInfo'), roomMsg: $('roomMsg'),
     nick: $('nick'), roomCode: $('roomCode'), roomMake: $('roomMake'), roomJoin: $('roomJoin'), roomCopy: $('roomCopy'), roomLeave: $('roomLeave'),
@@ -204,18 +204,22 @@
       b.onclick = () => { color = c; store.set('color', c); buildTitle(); };
       ui.colors.appendChild(b);
     });
-    ui.stages.innerHTML = '';
-    const best = store.get('best', {});
-    BB.STAGES.forEach((st, i) => {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'stageBtn' + (i === stageIdx ? ' sel' : '');
-      const n = document.createElement('span'); n.textContent = st.id;
-      const sm = document.createElement('small'); sm.textContent = best[st.id] ? fmt(best[st.id]) : '';
-      b.append(n, sm);
-      b.onclick = () => { loadStage(i); buildTitle(); };
-      ui.stages.appendChild(b);
-    });
+    renderStagePick();
   }
+  function renderStagePick() {
+    const st = BB.STAGES[stageIdx], best = store.get('best', {}), bs = store.get('bestStars', {});
+    const tier = BB.tierOf ? BB.tierOf(st.id) : '';
+    ui.stTier.textContent = tier; ui.stTier.dataset.t = tier;
+    ui.stName.textContent = st.id + '. ' + st.name;
+    ui.stBest.textContent = best[st.id] ? '최고 ' + fmt(best[st.id]) + '  ★' + (bs[st.id] || 0) : '아직 안 해 봤어요';
+  }
+  function pickStage(d) {
+    const n = BB.STAGES.length;
+    loadStage((stageIdx + d + n) % n);
+    renderStagePick();
+  }
+  ui.stPrev.addEventListener('click', () => pickStage(-1));
+  ui.stNext.addEventListener('click', () => pickStage(1));
 
   async function begin(forceButtons) {
     ui.start.disabled = true;
@@ -525,7 +529,7 @@
       car.wake -= dt;
       car.vx *= Math.exp(-dt * 5); car.vy *= Math.exp(-dt * 5);
       car.x += car.vx * dt; car.y += car.vy * dt;
-      if (car.wake <= 0) { placeCar(car.wakeTo); car.blink = 1.2; Sfx.respawn(); }
+      if (car.wake <= 0) { placeCar(safeS(car.wakeTo)); car.blink = 1.2; Sfx.respawn(); }
       return;
     }
 
@@ -737,7 +741,7 @@
       if (q.noise > 0.3 || car.zoneStill > 1.2) {
         const woke = q.noise > 0.3;
         q.awake = 2.2; q.noise = 0;
-        car.wake = 1.0; car.wakeTo = Math.max(track.startS - 30, q.s0 - 380);
+        car.wake = 1.0; car.wakeTo = Math.max(track.startS - 30, q.s0 - 600);
         Sfx.bump();
         flash(woke ? '앗, 깼다! 조용히 다시' : '더 빨리 들어와서 굴러가 봐', 1.8);
         return;
@@ -759,16 +763,24 @@
         if (ls >= 0) placeCar(0, 1, ls);
         else placeCar(Math.max(track.startS - 30, track.branch.sA + ls));
       } else {
-        let s = lr.ls - 60;
-        // 끊긴 길 근처: 점프대 한참 앞에서 (다시 속도 붙여서 뛰게)
-        for (const g of track.gaps) if (s > g.s0 - 450 && s < g.s1 + 40) s = g.s0 - 520;
-        for (const tn of track.turns) if (tn.deg >= 120 && s > tn.s0 - 120 && s < tn.s1) s = tn.s0 - 260;
-        for (const q of track.quiet) if (s > q.s0 - 60 && s < q.s1) s = q.s0 - 380;
-        placeCar(Math.max(track.startS - 30, s));
+        placeCar(safeS(lr.ls - 60));
       }
       car.blink = 1.2;
       Sfx.respawn();
     }
+  }
+
+  // 다시 시작할 안전한 곳: 규칙을 더 안 바뀔 때까지 반복 (급커브·점프·쉿이 연달아 있어도)
+  function safeS(s) {
+    for (let k = 0; k < 8; k++) {
+      const before = s;
+      // 끊긴 길 근처: 점프대 한참 앞에서 (다시 속도 붙여서 뛰게)
+      for (const g of track.gaps) if (s > g.s0 - 450 && s < g.s1 + 40) s = g.s0 - 520;
+      for (const tn of track.turns) if (tn.deg >= 120 && s > tn.s0 - 120 && s < tn.s1 + 40) s = tn.s0 - 260;
+      for (const q of track.quiet) if (s > q.s0 - 60 && s < q.s1) s = q.s0 - 600;
+      if (s === before) break;
+    }
+    return Math.max(track.startS - 30, s);
   }
 
   function bounce(nx, ny, power) {

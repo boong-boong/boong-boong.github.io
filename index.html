@@ -64,7 +64,15 @@
       <div class="pickLabel">차 색깔</div>
       <div id="colors" class="row"></div>
       <div class="pickLabel">스테이지</div>
-      <div id="stages" class="row"></div>
+      <div class="stagePick">
+        <button id="stPrev" class="round big2" type="button" aria-label="이전 스테이지">◀</button>
+        <div id="stages" class="stInfo">
+          <div id="stTier" class="stTier"></div>
+          <div id="stName" class="stName"></div>
+          <div id="stBest" class="stBest"></div>
+        </div>
+        <button id="stNext" class="round big2" type="button" aria-label="다음 스테이지">▶</button>
+      </div>
       <div id="roomBox" class="roomBox">
         <div class="pickLabel">친구랑 같이</div>
         <div id="roomOut" class="roomRows">
@@ -118,6 +126,7 @@
   <script src="js/audio.js"></script>
   <script src="js/sfx.js"></script>
   <script src="js/track.js"></script>
+  <script src="js/stages-more.js"></script>
   <script src="js/draw.js"></script>
   <script src="js/render3d.js"></script>
   <script src="js/online.js"></script>
