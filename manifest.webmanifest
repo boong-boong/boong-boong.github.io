@@ -1,0 +1,9 @@
+{
+  "name": "붕붕",
+  "short_name": "붕붕",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#bfe6ff",
+  "theme_color": "#bfe6ff"
+}

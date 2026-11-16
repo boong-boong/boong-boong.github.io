@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#bfe6ff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="manifest.webmanifest">
+  <title>붕붕</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!--BODY-->
+  <div id="frame">
+    <canvas id="game"></canvas>
+
+    <!-- 게임 중 HUD -->
+    <div id="hud" class="hidden">
+      <div class="hudLeft">
+        <div id="stageLabel">1</div>
+        <div class="pill">
+          <span id="timer">0:00.0</span>
+          <span id="starCount">★ 0</span>
+        </div>
+        <div id="friends" class="pill small hidden"></div>
+      </div>
+      <div class="hudRight">
+        <button id="hornBtn" class="round" type="button" aria-label="경적">빵</button>
+        <button id="viewBtn" class="round" type="button" aria-label="시점 바꾸기">3D</button>
+        <button id="recalBtn" class="round" type="button" aria-label="다시 보정">보정</button>
+        <button id="homeBtn" class="round" type="button" aria-label="처음 화면">≡</button>
+      </div>
+    </div>
+
+    <!-- 버튼 모드 조작판 -->
+    <div id="pad" class="hidden">
+      <div class="padL">
+        <button id="padLeft" class="pbtn" type="button" aria-label="왼쪽">◀</button>
+        <button id="padRight" class="pbtn" type="button" aria-label="오른쪽">▶</button>
+      </div>
+      <div class="padR">
+        <button id="padKkiik" class="pbtn kkiik" type="button">끼익</button>
+        <button id="padBoong" class="pbtn boong" type="button">붕</button>
+      </div>
+    </div>
+
+    <!-- 말풍선 안내 (붕 해 봐 / 끼익!) -->
+    <div id="bubble" class="hidden"></div>
+
+    <!-- 시작 화면 -->
+    <div id="title" class="screen">
+      <div class="logo">붕붕</div>
+      <div class="sub">입으로 운전해요</div>
+      <div class="pickLabel">차 색깔</div>
+      <div id="colors" class="row"></div>
+      <div class="pickLabel">스테이지</div>
+      <div id="stages" class="row"></div>
+      <button id="startBtn" class="big" type="button">시작</button>
+      <button id="btnModeBtn" class="link" type="button">마이크 없이 버튼으로 하기</button>
+      <div id="titleMsg" class="msg"></div>
+    </div>
+
+    <!-- 보정 화면 -->
+    <div id="calib" class="screen hidden">
+      <div id="calibText" class="calibText"></div>
+      <div class="calibBar"><div id="calibFill"></div></div>
+      <div id="calibSub" class="msg"></div>
+    </div>
+
+    <!-- 도착 화면 -->
+    <div id="arrive" class="screen hidden">
+      <div class="arriveText">도착</div>
+      <div id="arriveStats" class="stats"></div>
+      <div id="board" class="board hidden"></div>
+      <button id="playbackBtn" class="mid hidden" type="button">내 소리 듣기</button>
+      <div class="row">
+        <button id="retryBtn" class="mid ghost" type="button">다시</button>
+        <button id="nextBtn" class="big" type="button">다음 스테이지</button>
+      </div>
+    </div>
+
+    <!-- 가로 화면 경고 -->
+    <div id="rotate">폰을 세로로 들어 줘</div>
+  </div>
+
+  <script src="js/audio.js"></script>
+  <script src="js/sfx.js"></script>
+  <script src="js/track.js"></script>
+  <script src="js/draw.js"></script>
+  <script src="js/render3d.js"></script>
+  <script src="js/online.js"></script>
+  <script src="js/game.js"></script>
+  <!--/BODY-->
+</body>
+</html>
