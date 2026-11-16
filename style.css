@@ -64,26 +64,29 @@ button.round:active { transform: translateY(1px); }
 
 #pad {
   position: absolute; left: 0; right: 0; bottom: 0;
-  padding: 0 14px calc(16px + env(safe-area-inset-bottom));
+  padding: 0 12px calc(16px + env(safe-area-inset-bottom));
   display: flex; justify-content: space-between; align-items: flex-end;
   pointer-events: none;
 }
-.padL, .padR { display: flex; gap: 10px; align-items: flex-end; }
+.padL, .padR { display: flex; gap: min(10px, 2.5vw); align-items: flex-end; }
 .pbtn {
   pointer-events: auto; touch-action: none;
-  width: 70px; height: 70px; border-radius: 50%; border: 0; padding: 0;
+  width: min(70px, 19vw); height: min(70px, 19vw); border-radius: 50%; border: 0; padding: 0;
   font: inherit; font-size: 26px; color: #3a3350;
   background: rgba(255,255,255,.82); box-shadow: 0 4px 0 rgba(0,0,0,.15);
 }
-.pbtn.boong { width: 92px; height: 92px; font-size: 32px; color: #fff; background: #ff8a4c; box-shadow: 0 5px 0 #d4612a; }
+.pbtn.boong { width: min(92px, 24vw); height: min(92px, 24vw); font-size: 32px; color: #fff; background: #ff8a4c; box-shadow: 0 5px 0 #d4612a; }
 .pbtn.kkiik { font-size: 20px; color: #fff; background: #2bb3d9; box-shadow: 0 4px 0 #1a86a6; margin-bottom: 30px; }
 .pbtn.on { transform: translateY(3px); filter: brightness(.92); box-shadow: 0 1px 0 rgba(0,0,0,.15); }
 
 #bubble {
   position: absolute; left: 50%; top: 30%;
   transform: translate(-50%, -50%);
-  background: #fff; border-radius: 26px; padding: 12px 24px;
-  font-size: 34px; white-space: nowrap;
+  background: #fff; border-radius: 26px; padding: 12px 22px;
+  font-size: clamp(24px, 8.5vw, 34px); line-height: 1.25;
+  /* 긴 안내는 화면 폭 안에서 띄어쓰기 기준으로 줄바꿈 */
+  width: max-content; max-width: calc(100% - 32px);
+  white-space: normal; word-break: keep-all; overflow-wrap: break-word; text-align: center;
   box-shadow: 0 4px 0 rgba(0,0,0,.12);
   pointer-events: none;
   animation: pop .9s ease-in-out infinite alternate;
@@ -135,8 +138,9 @@ button:focus-visible { outline: 3px solid #3a3350; outline-offset: 3px; }
 
 #calib { justify-content: flex-start; padding-top: 22%; pointer-events: none; }
 .calibText {
-  font-size: 34px; background: #fff; border-radius: 26px; padding: 12px 26px;
-  box-shadow: 0 4px 0 rgba(0,0,0,.12); min-width: 220px;
+  font-size: clamp(26px, 8.5vw, 34px); background: #fff; border-radius: 26px; padding: 12px 22px;
+  box-shadow: 0 4px 0 rgba(0,0,0,.12); min-width: 220px; max-width: calc(100% - 32px);
+  word-break: keep-all; line-height: 1.25;
 }
 .calibBar { width: 220px; height: 12px; border-radius: 6px; background: rgba(255,255,255,.7); overflow: hidden; }
 #calibFill { height: 100%; width: 0%; background: #ff6b6b; border-radius: 6px; }
