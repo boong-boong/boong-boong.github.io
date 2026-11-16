@@ -81,6 +81,7 @@ button.round:active { transform: translateY(1px); }
   animation: pop .9s ease-in-out infinite alternate;
 }
 #bubble.kkiik { color: #1597b8; }
+#bubble.quiet { color: #7a5cc4; }
 #bubble.boong { color: #e8673c; }
 @keyframes pop { from { transform: translate(-50%, -50%) scale(1); } to { transform: translate(-50%, -50%) scale(1.08); } }
 

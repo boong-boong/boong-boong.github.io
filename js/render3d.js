@@ -56,22 +56,44 @@
 
     // 길 조각
     const P = track.pts;
-    const i0 = Math.max(0, car.segI - 16), i1 = Math.min(P.length - 1, car.segI + 230);
+    const mainI = S.mainI != null ? S.mainI : car.segI;
+    const i0 = Math.max(0, mainI - 16), i1 = Math.min(P.length - 1, mainI + 230);
     const STEP = 2;
-    for (let i = i0; i < i1; i += STEP) {
-      const a = P[i], b = P[Math.min(i1, i + STEP)];
-      const ra = T.right(a.h), rb = T.right(b.h);
-      const edge = (p, r, o, z) => [p.x + r.x * o, p.y + r.y * o, z || 0];
-      const band = Math.floor(a.s / 48) % 2;
-      // 섬 옆면(절벽)
-      for (const sd of [-1, 1]) {
-        const o = sd * (W / 2 + G);
-        quad([edge(a, ra, o, 0), edge(b, rb, o, 0), edge(b, rb, o, -40), edge(a, ra, o, -40)], '#5d9a4a', 3);
+    const surfOf = (ss) => { for (const q of track.surf) if (ss >= q.s0 && ss <= q.s1) return q.kind; return null; };
+    const quietOf = (ss) => track.quiet.some((q) => ss >= q.s0 && ss <= q.s1);
+    function strip(PP, a0, a1, isMain) {
+      for (let i = a0; i < a1; i += STEP) {
+        const a = PP[i], b = PP[Math.min(a1, i + STEP)];
+        if (a.gap || b.gap) continue;
+        const ra = T.right(a.h), rb = T.right(b.h);
+        const edge = (p, r, o, z) => [p.x + r.x * o, p.y + r.y * o, z || 0];
+        const band = Math.floor(a.s / 48) % 2;
+        for (const sd of [-1, 1]) {
+          const o = sd * (W / 2 + G);
+          quad([edge(a, ra, o, 0), edge(b, rb, o, 0), edge(b, rb, o, -40), edge(a, ra, o, -40)], '#5d9a4a', 3);
+        }
+        quad([edge(a, ra, -(W / 2 + G)), edge(b, rb, -(W / 2 + G)), edge(b, rb, W / 2 + G), edge(a, ra, W / 2 + G)], band ? '#8fd16f' : '#84c764', 2);
+        quad([edge(a, ra, -(W / 2 + 5)), edge(b, rb, -(W / 2 + 5)), edge(b, rb, W / 2 + 5), edge(a, ra, W / 2 + 5)], '#ffffff', 1);
+        const sf = isMain ? surfOf(a.s) : null;
+        let col = band ? '#bab4c7' : '#b3adc1';
+        if (sf === 'ice') col = band ? '#d6f0ff' : '#c8eaff';
+        else if (sf === 'mud') col = band ? '#9c7650' : '#8f6b47';
+        else if (isMain && quietOf(a.s)) col = band ? '#c5b3e0' : '#bba8d8';
+        quad([edge(a, ra, -W / 2), edge(b, rb, -W / 2), edge(b, rb, W / 2), edge(a, ra, W / 2)], col, 0);
+        if (!sf && Math.floor(a.s / 25) % 2 === 0) quad([edge(a, ra, -3), edge(b, rb, -3), edge(b, rb, 3), edge(a, ra, 3)], 'rgba(255,255,255,.8)', -1);
       }
-      quad([edge(a, ra, -(W / 2 + G)), edge(b, rb, -(W / 2 + G)), edge(b, rb, W / 2 + G), edge(a, ra, W / 2 + G)], band ? '#8fd16f' : '#84c764', 2);
-      quad([edge(a, ra, -(W / 2 + 5)), edge(b, rb, -(W / 2 + 5)), edge(b, rb, W / 2 + 5), edge(a, ra, W / 2 + 5)], '#ffffff', 1);
-      quad([edge(a, ra, -W / 2), edge(b, rb, -W / 2), edge(b, rb, W / 2), edge(a, ra, W / 2)], band ? '#bab4c7' : '#b3adc1', 0);
-      if (Math.floor(a.s / 25) % 2 === 0) quad([edge(a, ra, -3), edge(b, rb, -3), edge(b, rb, 3), edge(a, ra, 3)], 'rgba(255,255,255,.8)', -1);
+    }
+    strip(P, i0, i1, true);
+    const B = track.branch;
+    if (B && car.s > B.sA - 1600 && car.s < B.sB + 400) strip(B.pts, 0, B.pts.length - 1, false);
+
+    // 점프대: 앞쪽이 올라간 경사면
+    for (const gp of track.gaps) {
+      if (gp.s0 < P[i0].s || gp.ramp0 > P[i1].s) continue;
+      const a = T.pointAt(track, gp.ramp0), b = T.pointAt(track, gp.s0);
+      const ra = T.right(a.h), rb = T.right(b.h), hw = W / 2 - 12;
+      quad([[a.x - ra.x * hw, a.y - ra.y * hw, 1], [b.x - rb.x * hw, b.y - rb.y * hw, 20], [b.x + rb.x * hw, b.y + rb.y * hw, 20], [a.x + ra.x * hw, a.y + ra.y * hw, 1]], '#ffd43b', -2);
+      quad([[b.x - rb.x * hw, b.y - rb.y * hw, 0], [b.x + rb.x * hw, b.y + rb.y * hw, 0], [b.x + rb.x * hw, b.y + rb.y * hw, 20], [b.x - rb.x * hw, b.y - rb.y * hw, 20]], '#f59f00', -2.5);
     }
 
     // 출발/도착선
@@ -98,6 +120,14 @@
       }
     }
 
+    // 곰 (작은 섬 위)
+    const now = performance.now() / 1000;
+    for (const q of track.quiet) {
+      sprite(q.x, q.y, 0, (g2, x, y, k) => {
+        g2.fillStyle = '#6aa84f'; g2.beginPath(); g2.ellipse(x, y, 52 * k, 16 * k, 0, 0, 7); g2.fill();
+        BB.Draw.bear(g2, x, y - 26 * k, k * 0.9, q.awake > 0, now);
+      }, -4);
+    }
     // 나무, 아이템
     for (const t of track.trees) sprite(t.x, t.y, 0, (g2, x, y, k) => drawTree(g2, x, y, k), -4);
     const bob = Math.sin(performance.now() / 250) * 4;
@@ -121,7 +151,7 @@
     // 내 차
     if (car.fallT < 0 || car.fallT < 0.75) {
       const drop = car.fallT >= 0 ? car.fallT * car.fallT * 160 : 0;
-      sprite(car.x, car.y, -drop, (g2, x, y, k) => {
+      sprite(car.x, car.y, (car.z || 0) - drop, (g2, x, y, k) => {
         const blinkA = car.blink > 0 && Math.floor(car.blink * 10) % 2 === 0 ? 0.35 : 1;
         drawCarRear(g2, x, y, k * CAR_K, S.color, wrap(car.h - camA), car.steer, blinkA, car.turbo > 0);
         if (S.myHorn > 0) label(g2, x, y - 90 * k * CAR_K, '빵!', k, '#e8673c');

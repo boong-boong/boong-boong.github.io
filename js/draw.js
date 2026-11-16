@@ -65,5 +65,43 @@
     g.fillStyle = 'rgba(255,255,255,.35)'; g.beginPath(); g.arc(-9, 19, 3, 0, 7); g.arc(9, 19, 3, 0, 7); g.fill();
   }
 
-  BB.Draw = { rr, star, bolt, treeTop, carTop };
+  // 잠자는 곰 (awake면 눈 뜨고 '!'), 원점 = 얼굴 가운데, 위쪽 = 화면 위
+  function bear(g, x, y, k, awake, t) {
+    g.save(); g.translate(x, y); g.scale(k, k);
+    const breathe = awake ? 0 : Math.sin(t * 2) * 1.2;
+    g.fillStyle = '#9a6a45';
+    g.beginPath(); g.ellipse(0, 18, 30, 16 + breathe, 0, 0, 7); g.fill();               // 몸
+    g.beginPath(); g.arc(-15, -16, 8, 0, 7); g.arc(15, -16, 8, 0, 7); g.fill();       // 귀
+    g.beginPath(); g.arc(0, 0, 20, 0, 7); g.fill();                                   // 얼굴
+    g.fillStyle = '#e8c9a8'; g.beginPath(); g.ellipse(0, 7, 10, 7, 0, 0, 7); g.fill(); // 입 주변
+    g.fillStyle = '#3a3350'; g.beginPath(); g.arc(0, 4, 3, 0, 7); g.fill();           // 코
+    g.strokeStyle = '#3a3350'; g.lineWidth = 2; g.lineCap = 'round';
+    if (awake) {
+      g.beginPath(); g.arc(-7, -5, 3, 0, 7); g.arc(7, -5, 3, 0, 7); g.fillStyle = '#3a3350'; g.fill();
+      g.fillStyle = '#e8673c'; g.font = 'bold 26px Jua, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText('!', 0, -38);
+    } else {
+      g.beginPath(); g.arc(-7, -5, 3.5, 0.2, Math.PI - 0.2); g.stroke();
+      g.beginPath(); g.arc(7, -5, 3.5, 0.2, Math.PI - 0.2); g.stroke();
+      g.fillStyle = '#7a5cc4'; g.font = '15px Jua, sans-serif'; g.textAlign = 'left'; g.textBaseline = 'middle';
+      const z = (t * 0.8) % 1;
+      g.globalAlpha = 1 - z; g.fillText('z', 18 + z * 10, -22 - z * 18);
+      g.globalAlpha = 1 - ((z + 0.5) % 1); g.fillText('Z', 22 + ((z + 0.5) % 1) * 10, -26 - ((z + 0.5) % 1) * 18);
+      g.globalAlpha = 1;
+    }
+    g.restore();
+  }
+
+  // 점프대: 원점 = 점프대 가운데, 위쪽 = 진행 방향, len = 길이, w = 너비
+  function ramp(g, len, w) {
+    g.fillStyle = '#f59f00'; rr(g, -w / 2, -len / 2, w, len, 6); g.fill();
+    g.fillStyle = '#ffd43b'; rr(g, -w / 2 + 5, -len / 2 + 4, w - 10, len - 8, 4); g.fill();
+    g.strokeStyle = '#f08c00'; g.lineWidth = 5; g.lineJoin = 'round';
+    for (let i = 0; i < 3; i++) {
+      const y = len / 2 - 16 - i * 22;
+      g.beginPath(); g.moveTo(-18, y); g.lineTo(0, y - 12); g.lineTo(18, y); g.stroke();
+    }
+  }
+
+  BB.Draw = { rr, star, bolt, treeTop, carTop, bear, ramp };
 })();

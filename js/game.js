@@ -12,7 +12,7 @@
     R_NORMAL: 300,      // 평소 최소 회전 반지름 → 급커브는 못 돎
     R_DRIFT: 70,        // 끼익 중 최소 회전 반지름
     W_NORMAL: 1.7, W_DRIFT: 5,   // 최대 회전 속도 (rad/s)
-    GRIP_NORMAL: 14, GRIP_GRASS: 7,
+    GRIP_NORMAL: 14, GRIP_GRASS: 7, GRIP_ICE: 2.2,
     DRIFT_DECEL: 150,   // 끼익 중 속도 줄어듦 (미끄러지며 감속)
     DRIFT_SLIP: 0.6,    // 끼익 중 차 머리가 더 꺾여 보이는 정도 (rad)
     TURBO_TIME: 2.5, TURBO_V: 1.35,   // 번개: 2.5초 동안 최고 속도 1.35배
@@ -73,8 +73,16 @@
   function loadStage(i) {
     stageIdx = i;
     track = T.build(BB.STAGES[i]);
+    // 길 그림: 끊긴 구간은 비우고, 갈림길도 같이
     trackPath = new Path2D();
-    track.pts.forEach((p, k) => (k ? trackPath.lineTo(p.x, p.y) : trackPath.moveTo(p.x, p.y)));
+    const addPoly = (P) => { let on = false; for (const p of P) { if (p.gap) { on = false; continue; } if (on) trackPath.lineTo(p.x, p.y); else { trackPath.moveTo(p.x, p.y); on = true; } } };
+    addPoly(track.pts);
+    if (track.branch) addPoly(track.branch.pts);
+    // 바닥(얼음/진흙)·쉿 구간 그림
+    const sub = (s0, s1) => { const pa = new Path2D(); let on = false; for (const p of track.pts) { if (p.s < s0 || p.s > s1) continue; if (on) pa.lineTo(p.x, p.y); else { pa.moveTo(p.x, p.y); on = true; } } return pa; };
+    track.surf.forEach((q) => (q.path = sub(q.s0, q.s1)));
+    track.quiet.forEach((q) => (q.path = sub(q.s0, q.s1)));
+    iceHinted = false; iceHintT = 0; flashT = 0;
     particles = []; skids = []; passedTurns = new Set();
     ui.stage.textContent = String(BB.STAGES[i].id);
     placeCar(track.startS - 30);
@@ -86,14 +94,40 @@
     if (mode === 'mic' && micOk && state !== 'title') A.startRecording();
   }
 
-  function placeCar(s) {
-    const p = T.pointAt(track, s);
+  // pi: 0 = 본길, 1 = 갈림길(지름길). 갈림길이면 ls(그 길 안의 거리)로 놓음
+  function placeCar(s, pi, ls) {
+    pi = pi && track.branch ? 1 : 0;
+    const P = pi ? track.branch.pts : track.pts;
+    const local = pi ? ls : s;
+    const p = T.pointAtPts(P, local);
+    const gs = pi ? track.branch.map(local) : local;
     Object.assign(car, {
       x: p.x, y: p.y, h: p.h, vx: 0, vy: 0, steer: 0,
-      s, segI: p.i, lastRoadS: s, zone: 'road',
+      s: gs, ls: local, pi, segI: p.i, lastRoadS: gs, lastRoad: { pi, ls: local }, zone: 'road',
       coastV0: -1, fallT: -1, blink: 0, stillT: 0, drifting: false, slip: 0, turbo: 0,
+      air: null, z: 0, peakI: 0, wake: 0, wakeTo: 0, zoneStill: 0, fork: false, forkHinted: false,
     });
+    track.quiet.forEach((q) => (q.noise = 0));
   }
+  const curPts = () => (car.pi ? track.branch.pts : track.pts);
+  const curTurns = () => (car.pi ? track.branch.turns : track.turns);
+  // 지금 길에서 dist 앞의 점 (갈림길 끝을 넘으면 본길로 이어서)
+  function aheadPoint(dist) {
+    const Bf = track.branch;
+    // 갈림길 입구에서 지름길 쪽으로 핸들을 꺾었으면 지름길을 따라감
+    if (!car.pi && Bf && car.fork && car.s > Bf.sA - 80 && car.s < Bf.sA + 450) {
+      const ob = T.fullProgress(Bf.pts, car.x, car.y);
+      return T.pointAtPts(Bf.pts, ob.s + dist);
+    }
+    if (car.pi) {
+      const B = track.branch, ls = car.ls + dist;
+      if (ls <= B.total) return T.pointAtPts(B.pts, ls);
+      return T.pointAt(track, B.sB + (ls - B.total));
+    }
+    return T.pointAt(track, car.s + dist);
+  }
+  const surfAt = () => { if (car.pi) return null; const q = track.surf.find((q) => car.s >= q.s0 && car.s <= q.s1); return q ? q.kind : null; };
+  let jumpOK = 0, quietOK = 0, iceHintT = 0, iceHinted = false, forkHint = 0;
 
   // ---------- 조작: 기울이기 / 키보드 / 터치 / 버튼 ----------
   let tilt = 0;
@@ -387,9 +421,31 @@
 
   function stepCar(dt) {
     if (car.fallT >= 0) { stepFall(dt); return; }
+    // 곰이 깼음: 잠깐 멈췄다가 쉿 구간 앞으로 되돌아감
+    if (car.wake > 0) {
+      car.wake -= dt;
+      car.vx *= Math.exp(-dt * 5); car.vy *= Math.exp(-dt * 5);
+      car.x += car.vx * dt; car.y += car.vy * dt;
+      if (car.wake <= 0) { placeCar(car.wakeTo); car.blink = 1.2; Sfx.respawn(); }
+      return;
+    }
 
     const type = inputType();
     const inten = inputIntensity();
+    // 갈림길 입구: 지름길 방향으로 꺾고 있으면 지름길 선택
+    const Bk = track.branch;
+    if (Bk && !car.pi) {
+      if (car.s > Bk.sA - 150 && car.s < Bk.sA + 150) {
+        const dir = Bk.turns.length ? Bk.turns[0].dir : 1;
+        if (car.steer * dir > 0.25) car.fork = true;
+        else if (car.steer * dir < -0.25) car.fork = false;
+      } else if (car.s > Bk.sA + 450 || car.s < Bk.sA - 150) car.fork = false;
+    }
+    // 점프대에서 쓸 "방금 얼마나 크게 붕 했나" (0.7초쯤 남음)
+    car.peakI = Math.max(type === 'boong' ? Math.min(1.4, inten) : 0, car.peakI - dt * 1.5);
+    if (car.air) { stepAir(dt, type); return; }
+    const surf = surfAt();
+    const onIce = surf === 'ice', onMud = surf === 'mud';
     if (mode === 'buttons') btnHold = type === 'boong' ? btnHold + dt : 0;
     const holdT = mode === 'buttons' ? btnHold : A.out.holdT;
     const onGrass = car.zone === 'grass';
@@ -405,16 +461,20 @@
     else if (type === 'boong') {
       car.coastV0 = -1;
       const k = Math.min(1, inten);
-      const tgt = P.VMAX * (0.35 + 0.4 * k + 0.25 * Math.min(1, holdT / 2)) * (onGrass ? 0.4 : 1);
-      const acc = (260 + 220 * k) * (onGrass ? 0.6 : 1);
-      vf = vf < tgt ? Math.min(tgt, vf + acc * dt) : Math.max(tgt, vf - 90 * dt);
+      let tgt = P.VMAX * (0.35 + 0.4 * k + 0.25 * Math.min(1, holdT / 2)) * (onGrass ? 0.4 : 1);
+      let acc = (260 + 220 * k) * (onGrass ? 0.6 : 1);
+      // 진흙: 크게 붕 할수록 빨리 빠져나옴
+      if (onMud) { tgt = P.VMAX * (0.08 + 0.5 * Math.min(1.4, inten)); acc *= 0.5; }
+      vf = vf < tgt ? Math.min(tgt, vf + acc * dt) : Math.max(tgt, vf - (onMud ? 260 : 90) * dt);
     } else if (type === 'kkiik') {
       car.coastV0 = -1;
-      vf = Math.max(0, vf - P.DRIFT_DECEL * dt);
+      vf = Math.max(0, vf - P.DRIFT_DECEL * (onMud ? 2 : 1) * dt);
     } else {
       // 소리 멈춤: 약 2초 굴러가다 멈춤
       if (car.coastV0 < 0) car.coastV0 = Math.max(vf, 1);
-      vf = Math.max(0, vf - Math.max(car.coastV0 / P.COAST_TIME, 35) * dt);
+      // 얼음: 잘 안 멈춤 / 진흙: 금방 멈춤
+      const k = onIce ? 0.35 : onMud ? 3 : 1;
+      vf = Math.max(0, vf - Math.max(car.coastV0 / P.COAST_TIME, 35) * k * dt);
     }
     // 번개(터보): 무조건 앞으로 쭉
     if (car.turbo > 0 && state === 'play' && type !== 'kkiik') {
@@ -433,12 +493,12 @@
       let va = v > 1 ? Math.atan2(car.vx, -car.vy) : car.h;
       {
         // 끼익만 해도 길 따라 돌게 도와주고, 핸들(기울기)은 거기에 살짝 더하거나 빼는 정도
-        const p = T.pointAt(track, car.s + 170);
+        const p = aheadPoint(170);
         const d = wrap(Math.atan2(p.x - car.x, -(p.y - car.y)) - va);
         const assist = Math.abs(d) > 0.08 ? Math.max(-1, Math.min(1, d * 1.6)) : 0;
         st = Math.max(-1, Math.min(1, assist + st * 0.45));
       }
-      va += st * Math.min(P.W_DRIFT, v / P.R_DRIFT) * dt;
+      va += st * Math.min(P.W_DRIFT, v / P.R_DRIFT) * (onIce ? 0.7 : 1) * dt;
       const nv = Math.max(0, v - P.DRIFT_DECEL * dt);
       car.vx = Math.sin(va) * nv; car.vy = -Math.cos(va) * nv;
       car.slip += (st * P.DRIFT_SLIP - car.slip) * Math.min(1, dt * 8);
@@ -447,13 +507,13 @@
       // 드리프트가 끝나면 꺾여 있던 차 머리를 진행 방향으로 되돌림 (자동 카운터)
       const ns = car.slip * Math.exp(-dt * 7);
       car.h -= car.slip - ns; car.slip = ns;
-      car.h += st * Math.min(P.W_NORMAL, Math.abs(vf) / P.R_NORMAL) * dt;
+      car.h += st * Math.min(P.W_NORMAL, Math.abs(vf) / P.R_NORMAL) * (onIce ? 0.7 : 1) * dt;
 
       // 차 방향과 실제 움직임 방향의 차이를 grip만큼 줄임
       const vx = f.x * vf + r.x * vl, vy = f.y * vf + r.y * vl;
       f = fwd(car.h); r = right(car.h);
       let nf = vx * f.x + vy * f.y, nl = vx * r.x + vy * r.y;
-      const grip = onGrass ? P.GRIP_GRASS : P.GRIP_NORMAL;
+      const grip = onGrass ? P.GRIP_GRASS : onIce ? P.GRIP_ICE : P.GRIP_NORMAL;
       const nl2 = nl * Math.exp(-grip * dt);
       // 옆으로 잃은 속도의 일부를 앞으로 돌려줌 (커브에서 속도가 뚝 떨어지지 않게, 에너지는 늘지 않게)
       if (nf > 0) nf = Math.sqrt(nf * nf + (nl * nl - nl2 * nl2) * 0.9);
@@ -468,14 +528,23 @@
     pickItems();
 
     // 어디 있나
+    const prevS = car.s;
     const d = T.nearestDist(track, car.x, car.y);
     const half = BB.ROAD_W / 2;
     car.zone = d <= half ? 'road' : d <= half + BB.GRASS_W ? 'grass' : 'void';
-    const lp = T.localProgress(track, car.x, car.y, car.segI);
-    car.segI = lp.i; car.s = lp.s;
-    if (car.zone === 'road') car.lastRoadS = car.s;
+    updateProgress();
+    if (car.zone === 'road') { car.lastRoadS = car.s; car.lastRoad = { pi: car.pi, ls: car.ls }; }
+
+    // 점프대 끝을 지나면 날아오름: 방금 낸 붕이 클수록 오래(멀리)
+    if (state === 'play' && car.pi === 0 && car.zone !== 'void') {
+      for (const g of track.gaps) {
+        if (prevS < g.s0 - 2 && car.s >= g.s0 - 2) { takeOff(); return; }
+      }
+    }
 
     if (d > half + BB.GRASS_W + 4 && state === 'play') { car.fallT = 0; Sfx.fall(); return; }
+
+    if (state === 'play') stepQuiet(dt, type);
 
     // 커브 통과 기록 (끼익 안내를 언제까지 보여줄지)
     track.turns.forEach((tn, i) => {
@@ -493,6 +562,88 @@
     }
     if (car.turbo > 0 && Math.random() < 0.8) puff(-26, (Math.random() - 0.5) * 8, '#ffb347', 0.35, 6);
     if (onGrass && speed > 40 && Math.random() < 0.4) puff(-14, 0, '#6fbf5a', 0.4, 3);
+    if (onMud && speed > 20 && Math.random() < 0.6) puff(-12, (Math.random() - 0.5) * 24, '#8a6440', 0.45, 4);
+    if (onIce && speed > 120 && Math.random() < 0.25) puff(-14, (Math.random() - 0.5) * 20, '#e8f7ff', 0.5, 4);
+  }
+
+  // 본길/갈림길 진행 위치 갱신 (갈라지는 곳·합류하는 곳에서 더 가까운 길로 갈아탐)
+  function updateProgress() {
+    let lp = T.localProgress(track, car.x, car.y, car.segI, curPts());
+    const B = track.branch;
+    if (B) {
+      if (car.pi === 0 && car.s > B.sA - 40 && car.s < B.sA + 600) {
+        const ob = T.fullProgress(B.pts, car.x, car.y);
+        if (ob.s < 600 && ob.d + 6 < lp.d) { car.pi = 1; lp = ob; }
+      } else if (car.pi === 1 && (car.ls > B.total - 600 || car.ls < 300)) {
+        const near = car.ls < 300 ? B.sA : B.sB;
+        const om = T.localProgress(track, car.x, car.y, T.pointAt(track, near).i, track.pts);
+        if (om.d + 6 < lp.d) { car.pi = 0; lp = om; }
+      }
+    }
+    car.segI = lp.i; car.ls = lp.s;
+    car.s = car.pi ? B.map(lp.s) : lp.s;
+  }
+
+  function takeOff() {
+    const I = car.peakI;
+    const T_ = 0.3 + 0.5 * Math.min(1.4, I);
+    car.air = { t: 0, T: T_, H: 30 + 40 * I };
+    // 점프대가 차를 길 방향으로 60% 바로잡아 줌
+    const th = T.pointAt(track, car.s).h, v = Math.hypot(car.vx, car.vy);
+    const va = th + wrap(Math.atan2(car.vx, -car.vy) - th) * 0.4;
+    car.vx = Math.sin(va) * v; car.vy = -Math.cos(va) * v;
+    car.drifting = false;
+    for (let i = 0; i < 5; i++) puff(-10, (Math.random() - 0.5) * 30, '#ffffff', 0.5, 6);
+  }
+
+  function stepAir(dt, type) {
+    const a = car.air;
+    a.t += dt;
+    const u = Math.min(1, a.t / a.T);
+    car.z = 4 * a.H * u * (1 - u);
+    // 공중에선 핸들이 조금만 먹고, 속도는 그대로
+    const st = car.steer * 0.25;
+    const v = Math.hypot(car.vx, car.vy);
+    let va = Math.atan2(car.vx, -car.vy) + st * 0.6 * dt;
+    car.vx = Math.sin(va) * v; car.vy = -Math.cos(va) * v;
+    car.h += wrap(va - car.h) * Math.min(1, dt * 6);
+    car.x += car.vx * dt; car.y += car.vy * dt;
+    updateProgress();
+    pickItems();
+    if (u >= 1) {
+      car.air = null; car.z = 0;
+      shake = Math.min(0.3, shake + 0.15);
+      Sfx.bump();
+      const d = T.nearestDist(track, car.x, car.y);
+      if (d > BB.ROAD_W / 2 + BB.GRASS_W + 4) { car.fallT = 0; Sfx.fall(); return; }
+      jumpOK++;
+      for (let i = 0; i < 6; i++) puff(-6, (Math.random() - 0.5) * 30, '#ffffff', 0.5, 7);
+    }
+  }
+
+  // 쉿 구간: 소리가 0.3초 넘게 쌓이면 곰이 깸
+  function stepQuiet(dt, type) {
+    for (const q of track.quiet) {
+      const inside = car.pi === 0 && car.s >= q.s0 && car.s <= q.s1;
+      if (q.awake > 0) q.awake -= dt;
+      if (!inside) {
+        q.noise = Math.max(0, (q.noise || 0) - dt);
+        if (!q.passed && car.pi === 0 && car.s > q.s1) { q.passed = true; quietOK++; Sfx.star(); }
+        continue;
+      }
+      const noisy = type !== 'none' || myHorn > 0.5;
+      q.noise = noisy ? (q.noise || 0) + dt : Math.max(0, (q.noise || 0) - dt * 0.4);
+      const speed = Math.hypot(car.vx, car.vy);
+      car.zoneStill = speed < 4 ? car.zoneStill + dt : 0;
+      if (q.noise > 0.3 || car.zoneStill > 1.2) {
+        const woke = q.noise > 0.3;
+        q.awake = 2.2; q.noise = 0;
+        car.wake = 1.0; car.wakeTo = Math.max(track.startS - 30, q.s0 - 380);
+        Sfx.bump();
+        flash(woke ? '앗, 깼다! 조용히 다시' : '더 빨리 들어와서 굴러가 봐', 1.8);
+        return;
+      }
+    }
   }
 
   function stepFall(dt) {
@@ -502,10 +653,20 @@
     if (car.fallT > 0.75) {
       // 떨어진 근처(마지막으로 길 위에 있던 곳 조금 뒤)에서 부활.
       // 급커브 안이면 커브 시작 전으로 — 다시 속도 붙여서 끼익할 수 있게
-      let s = car.lastRoadS - 60;
-      for (const tn of track.turns) if (tn.deg >= 120 && s > tn.s0 - 120 && s < tn.s1) s = tn.s0 - 260;
-      s = Math.max(track.startS - 30, s);
-      placeCar(s);
+      const lr = car.lastRoad;
+      if (lr.pi === 1 && track.branch) {
+        let ls = lr.ls - 60;
+        for (const tn of track.branch.turns) if (tn.deg >= 120 && ls > tn.s0 - 120 && ls < tn.s1) ls = tn.s0 - 260;
+        if (ls >= 0) placeCar(0, 1, ls);
+        else placeCar(Math.max(track.startS - 30, track.branch.sA + ls));
+      } else {
+        let s = lr.ls - 60;
+        // 끊긴 길 근처: 점프대 한참 앞에서 (다시 속도 붙여서 뛰게)
+        for (const g of track.gaps) if (s > g.s0 - 450 && s < g.s1 + 40) s = g.s0 - 520;
+        for (const tn of track.turns) if (tn.deg >= 120 && s > tn.s0 - 120 && s < tn.s1) s = tn.s0 - 260;
+        for (const q of track.quiet) if (s > q.s0 - 60 && s < q.s1) s = q.s0 - 380;
+        placeCar(Math.max(track.startS - 30, s));
+      }
       car.blink = 1.2;
       Sfx.respawn();
     }
@@ -606,6 +767,28 @@
     g.strokeStyle = '#ffffff'; g.lineWidth = W + 8; g.stroke(trackPath);
     g.strokeStyle = '#b9b3c6'; g.lineWidth = W; g.stroke(trackPath);
 
+    // 쉿 구간 곰이 사는 작은 섬
+    for (const q of track.quiet) {
+      g.fillStyle = '#4e9a43'; g.beginPath(); g.arc(q.x, q.y, 52, 0, 7); g.fill();
+      g.fillStyle = '#8fd16f'; g.beginPath(); g.arc(q.x, q.y, 46, 0, 7); g.fill();
+    }
+    // 바닥: 얼음 / 진흙
+    g.lineCap = 'butt';
+    for (const q of track.surf) {
+      if (q.kind === 'ice') {
+        g.strokeStyle = '#d3efff'; g.lineWidth = W; g.stroke(q.path);
+        g.setLineDash([40, 70]); g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 6;
+        for (const o of [-40, 30]) { g.save(); g.translate(o * 0.1, o * 0.1); g.stroke(q.path); g.restore(); }
+        g.setLineDash([]);
+      } else {
+        g.strokeStyle = '#9c7650'; g.lineWidth = W; g.stroke(q.path);
+        g.setLineDash([8, 30]); g.strokeStyle = '#7d5a39'; g.lineWidth = W * 0.6; g.stroke(q.path); g.setLineDash([]);
+      }
+    }
+    // 쉿 구간: 보라빛 길
+    for (const q of track.quiet) { g.strokeStyle = 'rgba(150,120,210,.32)'; g.lineWidth = W; g.stroke(q.path); }
+    g.lineCap = 'round';
+
     const fc = ['#ffffff', '#ffd84d', '#ff9ec4'];
     for (const f of track.flowers) { g.fillStyle = fc[f.c]; g.beginPath(); g.arc(f.x, f.y, 3, 0, 7); g.fill(); }
 
@@ -618,6 +801,27 @@
 
     checkerLine(track.startS, 2, false);
     checkerLine(track.finishS, 3, true);
+
+    // 갈림길 표지: 지름길 입구에 화살표
+    if (track.branch) {
+      const B = track.branch, p = T.pointAt(track, B.sA - 90), rv = right(p.h), dir = B.turns.length ? B.turns[0].dir : 1;
+      const x = p.x + rv.x * dir * 36, y = p.y + rv.y * dir * 36;
+      g.save(); g.translate(x, y); g.rotate(cam.a);
+      g.fillStyle = '#fff'; D.rr(g, -36, -16, 72, 32, 10); g.fill();
+      g.fillStyle = '#e8673c'; g.font = '16px Jua, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(dir > 0 ? '지름길 ▶' : '◀ 지름길', 0, 1);
+      g.restore();
+    }
+    // 점프대
+    for (const gp of track.gaps) {
+      const p = T.pointAt(track, (gp.ramp0 + gp.s0) / 2);
+      g.save(); g.translate(p.x, p.y); g.rotate(p.h); D.ramp(g, gp.s0 - gp.ramp0, BB.ROAD_W - 24); g.restore();
+    }
+    // 곰
+    const now = performance.now() / 1000;
+    for (const q of track.quiet) {
+      g.save(); g.translate(q.x, q.y); g.rotate(cam.a); D.bear(g, 0, 0, 1, q.awake > 0, now); g.restore();
+    }
 
     for (const w of track.walls) {
       g.strokeStyle = '#e55858'; g.lineWidth = WALL_HW * 2;
@@ -753,12 +957,35 @@
     const btn = mode === 'buttons';
     car.stillT = speed < 3 && inputType() !== 'boong' ? car.stillT + dt : 0;
 
+    if (car.wake > 0 || car.air) { setBubble('', ''); return; }
     if (curveSuccess < 2 && !car.drifting) {
-      for (const tn of track.turns) {
+      for (const tn of curTurns()) {
         if (tn.deg < 120) continue;
-        if (car.s > tn.s0 - 280 && car.s < tn.s0 + (tn.s1 - tn.s0) * 0.6 && speed > 30) { setBubble(btn ? '끼익 꾹!' : '끼익!', 'kkiik'); return; }
+        if (car.ls > tn.s0 - 280 && car.ls < tn.s0 + (tn.s1 - tn.s0) * 0.6 && speed > 30) { setBubble(btn ? '끼익 꾹!' : '끼익!', 'kkiik'); return; }
       }
     }
+    if (car.pi === 0) {
+      // 점프대 앞: 크게 붕!!
+      if (jumpOK < 2) for (const g of track.gaps) {
+        if (car.s > g.ramp0 - 320 && car.s < g.s0) { setBubble(btn ? '붕 꾹 눌러 점프!' : '크게 붕!!', 'boong'); return; }
+      }
+      // 쉿 구간 앞·안
+      if (quietOK < 2) for (const q of track.quiet) {
+        if (car.s > q.s0 - 320 && car.s < q.s1) { setBubble(car.s < q.s0 - 120 ? '곧 쉿! 미리 붕~' : '쉿! 조용히…', 'quiet'); return; }
+      }
+      // 갈림길 앞 (처음 두 번)
+      const Bh = track.branch;
+      if (Bh && forkHint < 2 && car.s > Bh.sA - 330 && car.s < Bh.sA - 20) {
+        const dir = Bh.turns.length ? Bh.turns[0].dir : 1;
+        setBubble(dir > 0 ? '지름길: ▶ 꺾고 끼익!' : '지름길: ◀ 꺾고 끼익!', 'kkiik');
+        if (car.s > Bh.sA - 40 && !car.forkHinted) { car.forkHinted = true; forkHint++; }
+        return;
+      }
+      const sf = surfAt();
+      if (sf === 'mud' && speed < 160) { setBubble(btn ? '붕 꾹!' : '크게 붕!', 'boong'); return; }
+      if (sf === 'ice' && !iceHinted) { iceHinted = true; iceHintT = 1.6; }
+    }
+    if (iceHintT > 0) { iceHintT -= dt; setBubble('미끄러워!', 'kkiik'); return; }
     if (car.stillT > 0.6) { setBubble(btn ? '붕 버튼 꾹!' : '붕~ 해 봐', 'boong'); return; }
 
     if (stageIdx === 0 && !steerHintShown && speed > 80) { steerHintShown = true; steerHintT = 3; }
@@ -829,7 +1056,7 @@
     const sx = shake ? (Math.random() - 0.5) * 16 * shake : 0, sy = shake ? (Math.random() - 0.5) * 16 * shake : 0;
     if (view === '3d' && state !== 'title') {
       g.save(); g.translate(sx, sy);
-      BB.Render3D.draw(g, cw, ch, { track, car, camA: cam.a, particles, peers, color, myHorn });
+      BB.Render3D.draw(g, cw, ch, { track, car, camA: cam.a, particles, peers, color, myHorn, mainI: car.pi ? T.pointAt(track, car.s).i : car.segI });
       g.restore();
     } else {
       g.fillStyle = '#bfe6ff'; g.fillRect(0, 0, cw, ch);
@@ -844,6 +1071,11 @@
       let sc = 1, spin = 0, alpha = 1;
       if (car.fallT >= 0) { sc = Math.max(0.05, 1 - car.fallT / 0.75); spin = car.fallT * 6; }
       if (car.blink > 0 && Math.floor(car.blink * 10) % 2 === 0) alpha = 0.35;
+      if (car.z > 0) {
+        g.save(); g.translate(car.x + car.z * 0.35, car.y + car.z * 0.35); g.rotate(car.h);
+        g.fillStyle = 'rgba(40,30,60,.25)'; D.rr(g, -15, -22, 30, 46, 13); g.fill(); g.restore();
+        sc *= 1 + car.z / 110;
+      }
       drawCar2D(car.x, car.y, car.h, color, car.steer, { sc, spin, alpha, turbo: car.turbo > 0 });
       drawTrees2D();
       g.restore();
@@ -869,7 +1101,7 @@
 
   // 테스트/디버그용
   window.BBdebug = {
-    dbg, simStep, keyDir, padState, setTilt(v) { tilt = v; },
+    dbg, simStep, keyDir, padState, setTilt(v) { tilt = v; }, aheadPoint, get jumpOK() { return jumpOK; }, get quietOK() { return quietOK; },
     get state() { return state; }, car, get track() { return track; }, loadStage,
     startPlay(m) { mode = m || 'buttons'; startPlay(); }, startCalibration, get stageIdx() { return stageIdx; },
     get runT() { return runT; }, get stars() { return stars; }, setView(v) { view = v; applyView(); },

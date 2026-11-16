@@ -27,19 +27,40 @@
     { id: 5, name: '끝판', parts: [{ s: 500 }, { t: -60, r: 500 }, { s: 300 }, { t: 165, r: 100 }, { s: 520 }, { t: -160, r: 95 }, { s: 520 }, { t: 60, r: 500 }, { s: 520 }],
       stars: { every: 170 }, bolts: [3350],
       trees: [[1000, 45], [1750, -45], [2500, 40]] },
+    // ---- 새 요소: 점프대·끊긴 길 / 쉿 구간 / 얼음·진흙 / 갈림길 ----
+    // gaps: [끊긴 곳 s, 길이] 앞 80px이 점프대 · quiet: [s, 길이, 곰 쪽] · surf: [s, 길이, 'ice'|'mud']
+    // branch: { at: 갈라지는 s, parts: 지름길 조각 } (끝은 본길에 다시 합류)
+    { id: 6, name: '점프!', parts: [{ s: 1300 }, { t: 40, r: 600 }, { s: 1500 }],
+      stars: { every: 200 }, bolts: [],
+      gaps: [[750, 190], [2050, 240]] },
+    { id: 7, name: '쉿!', parts: [{ s: 900 }, { t: -50, r: 550 }, { s: 900 }, { t: 60, r: 550 }, { s: 800 }],
+      stars: { every: 190 }, bolts: [],
+      quiet: [[650, 380, 1], [2000, 420, -1]] },
+    { id: 8, name: '꽁꽁 얼음', parts: [{ s: 700 }, { t: 45, r: 600 }, { s: 800 }, { t: -60, r: 600 }, { s: 900 }],
+      stars: { every: 180, wave: 35 }, bolts: [],
+      surf: [[350, 650, 'ice'], [1700, 380, 'mud'], [2550, 420, 'ice']] },
+    { id: 9, name: '갈림길', parts: [{ s: 700 }, { t: 180, r: 320 }, { s: 1800 }],
+      stars: { every: 220 }, bolts: [],
+      branch: { at: 300, parts: [{ t: 150, r: 95 }, { s: 842 }, { t: 30, r: 300 }] } },
+    { id: 10, name: '대모험', parts: [{ s: 700 }, { t: 180, r: 320 }, { s: 1500 }, { t: -160, r: 95 }, { s: 1300 }],
+      stars: { every: 200 }, bolts: [],
+      branch: { at: 300, parts: [{ t: 150, r: 95 }, { s: 842 }, { t: 30, r: 300 }] },
+      surf: [[1800, 260, 'mud']],
+      quiet: [[2500, 360, -1]],
+      gaps: [[3900, 220]] },
   ];
 
   const fwd = (h) => ({ x: Math.sin(h), y: -Math.cos(h) });
   const right = (h) => ({ x: Math.cos(h), y: Math.sin(h) });
 
-  function build(def) {
+  // 조각(parts)을 이어 중앙선 점들을 만든다. 급커브 안쪽엔 섬 벽.
+  function buildPath(parts, x, y, h) {
     const pts = [];
     const turns = [];
     const walls = [];
-    let x = 0, y = 0, h = 0, s = 0;
+    let s = 0;
     pts.push({ x, y, h, s });
-
-    def.parts.forEach((p, idx) => {
+    parts.forEach((p, idx) => {
       if (p.s != null) {
         const n = Math.max(1, Math.round(p.s / STEP));
         const d = p.s / n;
@@ -64,21 +85,26 @@
           h += dth / 2;
           pts.push({ x, y, h, s });
         }
-        const turn = { s0, s1: s, dir, cx, cy, hIn, hOut: h, deg: Math.abs(p.t) };
-        turns.push(turn);
-
+        turns.push({ s0, s1: s, dir, cx, cy, hIn, hOut: h, deg: Math.abs(p.t) });
         // 급커브 안쪽 섬에 벽: 두 길 사이 잔디를 가로질러 지름길 못 가게
-        if (Math.abs(p.t) >= 140) {
+        if (Math.abs(p.t) >= 140 && !p.noWall) {
           const fi = fwd(hIn), fo = fwd(h);
           let dx = -fi.x + fo.x, dy = -fi.y + fo.y;
           const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
-          const prev = def.parts[idx - 1], next = def.parts[idx + 1];
+          const prev = parts[idx - 1], next = parts[idx + 1];
           const legs = Math.min(prev && prev.s || 300, next && next.s || 300);
           const wl = Math.min(420, legs * 0.8);
           walls.push({ x1: cx + dx * 12, y1: cy + dy * 12, x2: cx + dx * wl, y2: cy + dy * wl });
         }
       }
     });
+    return { pts, turns, walls, total: s };
+  }
+
+  function build(def) {
+    const main = buildPath(def.parts, 0, 0, 0);
+    const pts = main.pts, turns = main.turns, walls = main.walls.slice();
+    let s = main.total;
 
     const total = s;
     const startS = 70;
@@ -107,13 +133,58 @@
     (def.bolts || []).forEach((ss) => items.push({ kind: 'bolt', ...at(ss, 0), s: ss }));
     const trees = (def.trees || []).map(([ss, off]) => ({ ...at(ss, off), s: ss }));
 
+    // 끊긴 길: [시작 s, 길이]. 바로 앞 80px이 점프대. 끊긴 구간 점은 gap 표시(길로 안 침)
+    const gaps = (def.gaps || []).map(([g0, len]) => ({ s0: g0, s1: g0 + len, ramp0: g0 - 80 }));
+    pts.forEach((p) => { p.gap = gaps.some((gp) => p.s > gp.s0 + 1 && p.s < gp.s1 - 1); });
+    // 쉿 구간: [시작 s, 길이, 곰 위치(-1 왼쪽 / 1 오른쪽)]
+    const quiet = (def.quiet || []).map(([q0, len, side]) => {
+      const p = pointAtPts(pts, q0 + len / 2), rv = right(p.h), sd = side || 1;
+      const off = BB.ROAD_W / 2 + BB.GRASS_W + 48;
+      return { s0: q0, s1: q0 + len, x: p.x + rv.x * off * sd, y: p.y + rv.y * off * sd, side: sd };
+    });
+    // 바닥: [시작 s, 길이, 'ice' | 'mud']
+    const surf = (def.surf || []).map(([a, len, kind]) => ({ s0: a, s1: a + len, kind }));
+
+    // 갈림길: 본길 s=at 에서 갈라져 나갔다가 본길 다른 곳에 다시 합류하는 두 번째 길
+    let branch = null;
+    if (def.branch) {
+      const A = pointAtPts(pts, def.branch.at);
+      const bp = buildPath(def.branch.parts, A.x, A.y, A.h);
+      const E = bp.pts[bp.pts.length - 1];
+      let best = { d: Infinity, s: 0, h: 0 };
+      for (let i = 0; i < pts.length; i++) {
+        const d = Math.hypot(pts[i].x - E.x, pts[i].y - E.y);
+        if (d < best.d && pts[i].s > def.branch.at + 100) best = { d, s: pts[i].s, h: pts[i].h };
+      }
+      const sA = def.branch.at, sB = best.s;
+      branch = {
+        pts: bp.pts, turns: bp.turns, total: bp.total, sA, sB,
+        err: { d: best.d, h: Math.abs(((E.h - best.h + Math.PI * 3) % (Math.PI * 2)) - Math.PI) },
+        map: (ls) => sA + ((sB - sA) * ls) / bp.total,
+      };
+      bp.walls.forEach((w) => walls.push(w));
+      // 지름길 위 별 (보상)
+      for (let ls = 120; ls < bp.total - 100; ls += 110) {
+        const p = pointAtPts(bp.pts, ls);
+        items.push({ kind: 'star', x: p.x, y: p.y, s: branch.map(ls), onBranch: true });
+      }
+    }
+    // 끊긴 구간/점프대 위 별은 빼기 (공중에서 먹기 애매하니)
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      if (!it.onBranch && gaps.some((gp) => it.s > gp.ramp0 - 30 && it.s < gp.s1 + 30)) items.splice(i, 1);
+    }
+
+    const allPts = branch ? pts.concat(branch.pts) : pts;
+
     // 꾸밈: 잔디 위 작은 꽃 (장애물 아님)
     const flowers = [];
     let seed = def.id * 9973;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    for (let i = 0; i < pts.length; i += 3) {
+    for (let i = 0; i < allPts.length; i += 3) {
       if (rnd() < 0.55) continue;
-      const p = pts[i], rv = right(p.h);
+      const p = allPts[i], rv = right(p.h);
+      if (p.gap) continue;
       const side = rnd() < 0.5 ? -1 : 1;
       const off = BB.ROAD_W / 2 + 6 + rnd() * (BB.GRASS_W - 10);
       flowers.push({ x: p.x + rv.x * off * side, y: p.y + rv.y * off * side, c: Math.floor(rnd() * 3) });
@@ -121,7 +192,7 @@
 
     // 꾸밈: 구름 (낭떠러지 아래 하늘)
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    pts.forEach((p) => { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); });
+    allPts.forEach((p) => { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); });
     const clouds = [];
     const pad = 700;
     const area = (maxX - minX + pad * 2) * (maxY - minY + pad * 2);
@@ -130,7 +201,7 @@
       clouds.push({ x: minX - pad + rnd() * (maxX - minX + pad * 2), y: minY - pad + rnd() * (maxY - minY + pad * 2), r: 30 + rnd() * 40 });
     }
 
-    return { def, pts, turns, walls, total, startS, finishS, flowers, clouds, items, trees };
+    return { def, pts, turns, walls, total, startS, finishS, flowers, clouds, items, trees, gaps, quiet, surf, branch };
   }
 
   // 점-선분 거리
@@ -143,27 +214,43 @@
     return { t, qx, qy, d: Math.hypot(px - qx, py - qy) };
   }
 
-  // 전체 길에서 가장 가까운 거리 (땅 종류 판단용)
-  function nearestDist(tr, x, y) {
-    let best = Infinity;
-    const P = tr.pts;
+  function nearestIn(P, x, y, best) {
     for (let i = 0; i < P.length - 1; i++) {
       const a = P[i], b = P[i + 1];
-      // 빠른 거르기
+      if (a.gap || b.gap) continue;                 // 끊긴 구간은 길이 아님
       if (Math.abs(a.x - x) > best + 20 && Math.abs(b.x - x) > best + 20) continue;
       const r = segProj(a.x, a.y, b.x, b.y, x, y);
       if (r.d < best) best = r.d;
     }
     return best;
   }
+  // 모든 길(본길 + 갈림길)에서 가장 가까운 거리 (땅 종류 판단용)
+  function nearestDist(tr, x, y) {
+    let best = nearestIn(tr.pts, x, y, Infinity);
+    if (tr.branch) best = nearestIn(tr.branch.pts, x, y, best);
+    return best;
+  }
 
   // 지금 진행 위치 근처에서만 찾기 (머리핀 커브에서 옆 길로 튀지 않게)
-  function localProgress(tr, x, y, iHint) {
-    const P = tr.pts;
+  // P를 주면 그 길(갈림길)에서, 아니면 본길에서
+  function localProgress(tr, x, y, iHint, P) {
+    P = P || tr.pts;
+    iHint = Math.max(0, Math.min(P.length - 2, iHint));
     const i0 = Math.max(0, iHint - 20), i1 = Math.min(P.length - 2, iHint + 30);
     let best = { d: Infinity, i: iHint, s: P[iHint].s };
     for (let i = i0; i <= i1; i++) {
       const a = P[i], b = P[i + 1];
+      const r = segProj(a.x, a.y, b.x, b.y, x, y);
+      if (r.d < best.d) best = { d: r.d, i, s: a.s + (b.s - a.s) * r.t };
+    }
+    return best;
+  }
+  // 한 길 전체에서 가장 가까운 곳 (갈림길로 갈아탔는지 볼 때)
+  function fullProgress(P, x, y) {
+    let best = { d: Infinity, i: 0, s: 0 };
+    for (let i = 0; i < P.length - 1; i++) {
+      const a = P[i], b = P[i + 1];
+      if (Math.abs(a.x - x) > best.d + 20 && Math.abs(b.x - x) > best.d + 20) continue;
       const r = segProj(a.x, a.y, b.x, b.y, x, y);
       if (r.d < best.d) best = { d: r.d, i, s: a.s + (b.s - a.s) * r.t };
     }
@@ -182,5 +269,5 @@
     return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, h: a.h + dh * t, i: lo };
   }
 
-  BB.Track = { build, nearestDist, localProgress, pointAt, segProj, fwd, right };
+  BB.Track = { build, nearestDist, localProgress, fullProgress, pointAt, pointAtPts, segProj, fwd, right };
 })();
