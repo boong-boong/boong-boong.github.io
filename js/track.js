@@ -142,6 +142,11 @@
       const off = BB.ROAD_W / 2 + BB.GRASS_W + 48;
       return { s0: q0, s1: q0 + len, x: p.x + rv.x * off * sd, y: p.y + rv.y * off * sd, side: sd };
     });
+    // 끼익 문: 길을 막은 차단기. 문 앞(320px 안)에서 끼익 하면 잠깐 열림
+    const doors = (def.doors || []).map((ds) => {
+      const p = pointAtPts(pts, ds), rv = right(p.h), hw = BB.ROAD_W / 2 + BB.GRASS_W;
+      return { s: ds, h: p.h, x: p.x, y: p.y, x1: p.x - rv.x * hw, y1: p.y - rv.y * hw, x2: p.x + rv.x * hw, y2: p.y + rv.y * hw, open: 0, lift: 0 };
+    });
     // 바닥: [시작 s, 길이, 'ice' | 'mud']
     const surf = (def.surf || []).map(([a, len, kind]) => ({ s0: a, s1: a + len, kind }));
 
@@ -163,8 +168,15 @@
         map: (ls) => sA + ((sB - sA) * ls) / bp.total,
       };
       bp.walls.forEach((w) => walls.push(w));
-      // 지름길 위 별 (보상)
+      // 지름길 위 나무 [지름길 안 거리, 옆]
+      const bTrees = def.branch.trees || [];
+      bTrees.forEach(([ls, off]) => {
+        const p = pointAtPts(bp.pts, ls), rv = right(p.h);
+        trees.push({ x: p.x + rv.x * off, y: p.y + rv.y * off, s: branch.map(ls), ls, onBranch: true });
+      });
+      // 지름길 위 별 (보상), 나무 근처는 빼고
       for (let ls = 120; ls < bp.total - 100; ls += 110) {
+        if (bTrees.some(([t]) => Math.abs(t - ls) < 60)) continue;
         const p = pointAtPts(bp.pts, ls);
         items.push({ kind: 'star', x: p.x, y: p.y, s: branch.map(ls), onBranch: true });
       }
@@ -201,7 +213,7 @@
       clouds.push({ x: minX - pad + rnd() * (maxX - minX + pad * 2), y: minY - pad + rnd() * (maxY - minY + pad * 2), r: 30 + rnd() * 40 });
     }
 
-    return { def, pts, turns, walls, total, startS, finishS, flowers, clouds, items, trees, gaps, quiet, surf, branch };
+    return { def, pts, turns, walls, total, startS, finishS, flowers, clouds, items, trees, gaps, quiet, surf, branch, doors, night: !!def.night };
   }
 
   // 점-선분 거리

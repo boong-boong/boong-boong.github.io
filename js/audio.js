@@ -222,6 +222,24 @@
     return raw;
   }
 
+  // ---- 보정값 저장/불러오기 (다음엔 10초 보정 건너뛰기) ----
+  function exportCal() {
+    const o = {};
+    ['noiseDb', 'boongDb', 'kkiikDb', 'boongPitch', 'kkiikPitch', 'thrOn', 'split', 'good'].forEach((k) => (o[k] = cal[k]));
+    if (noiseSpec) o.noise = Array.from(noiseSpec, (v) => +v.toPrecision(3));
+    o.v = 1;
+    return o;
+  }
+  function importCal(o) {
+    if (!o || o.v !== 1) return false;
+    const keys = ['noiseDb', 'boongDb', 'kkiikDb', 'boongPitch', 'kkiikPitch', 'thrOn', 'split'];
+    if (!keys.every((k) => typeof o[k] === 'number' && isFinite(o[k]))) return false;
+    keys.forEach((k) => (cal[k] = o[k]));
+    cal.good = !!o.good;
+    if (noiseSpec && Array.isArray(o.noise) && o.noise.length === noiseSpec.length) noiseSpec.set(o.noise.map((v) => +v || 0));
+    return true;
+  }
+
   // ---- 녹음: 한 판 동안 낸 소리를 저장했다가 도착하면 들려주기 ----
   let rec = null, chunks = [], recUrl = null;
   function startRecording() {
@@ -256,5 +274,5 @@
     return Math.max(0, Math.min(1, (d - lo) / Math.max(10, hi - lo)));
   }
 
-  BB.Audio = { init, resume, reopen, stream: () => stream, aec: () => aecOn, ctx: () => ctx, hasMic: () => !!stream, startRecording, stopRecording, update, measure, captureNoiseFrame, setNoise, applyCalibration, cal, out, keys, pitchNorm, dbNorm };
+  BB.Audio = { init, resume, reopen, exportCal, importCal, stream: () => stream, aec: () => aecOn, ctx: () => ctx, hasMic: () => !!stream, startRecording, stopRecording, update, measure, captureNoiseFrame, setNoise, applyCalibration, cal, out, keys, pitchNorm, dbNorm };
 })();

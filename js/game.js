@@ -20,11 +20,15 @@
   const CAR_R = 15, WALL_HW = 7, TREE_R = 17, ITEM_R = 30;
   const CALIB = { quiet: 1.0, boong: 4.5, kkiik: 4.5, ok: 0.9 }; // 합 10초 + 확인
   const COLORS = ['#ff6b6b', '#4dabf7', '#ffd43b', '#51cf66', '#b197fc', '#ff922b'];
+  // 별을 모으면 열리는 꾸미기 (스테이지별 최고 별 수의 합)
+  const EXTRA_COLORS = [{ c: '#f783ac', need: 40 }, { c: '#20c997', need: 80 }, { c: '#f1f3f5', need: 150 }, { c: '#495057', need: 250 }];
+  const HATS = [{ id: '', name: '없음', need: 0 }, { id: 'ribbon', name: '리본', need: 20 }, { id: 'shades', name: '선글라스', need: 60 }, { id: 'party', name: '고깔', need: 120 }, { id: 'crown', name: '왕관', need: 200 }];
 
   // ---------- 저장 (이 브라우저에만) ----------
   const store = {
-    get(k, d) { try { const v = localStorage.getItem('bb_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
-    set(k, v) { try { localStorage.setItem('bb_' + k, JSON.stringify(v)); } catch (e) {} },
+    get(k, d) { try { const v = localStorage.getItem('bb_' + k); if (v == null) return d; const o = JSON.parse(v); return o == null ? d : o; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('bb_' + k, JSON.stringify(v)); return true; } catch (e) { return false; } },
+    del(k) { try { localStorage.removeItem('bb_' + k); } catch (e) {} },
   };
 
   // ---------- DOM ----------
@@ -35,7 +39,7 @@
     horn: $('hornBtn'), view: $('viewBtn'), recal: $('recalBtn'), home: $('homeBtn'),
     pad: $('pad'), padL: $('padLeft'), padR: $('padRight'), padB: $('padBoong'), padK: $('padKkiik'),
     bubble: $('bubble'),
-    title: $('title'), colors: $('colors'), stages: $('stages'), stTier: $('stTier'), stName: $('stName'), stBest: $('stBest'), stPrev: $('stPrev'), stNext: $('stNext'), start: $('startBtn'), titleMsg: $('titleMsg'),
+    title: $('title'), colors: $('colors'), hats: $('hats'), starTotal: $('starTotal'), stages: $('stages'), stTier: $('stTier'), stName: $('stName'), stBest: $('stBest'), stPrev: $('stPrev'), stNext: $('stNext'), start: $('startBtn'), titleMsg: $('titleMsg'),
     calib: $('calib'), calibText: $('calibText'), calibFill: $('calibFill'), calibSub: $('calibSub'),
     roomBox: $('roomBox'), roomOut: $('roomOut'), roomIn: $('roomIn'), roomInfo: $('roomInfo'), roomMsg: $('roomMsg'),
     nick: $('nick'), roomCode: $('roomCode'), roomMake: $('roomMake'), roomJoin: $('roomJoin'), roomCopy: $('roomCopy'), roomLeave: $('roomLeave'),
@@ -71,7 +75,29 @@
   let myHorn = 0;
   const peerHorn = new Map();
   let recUrl = null, playing = null;
-  if (!COLORS.includes(color)) color = COLORS[0];
+  // 고스트: 내 최고 기록 주행 (초당 15번 위치)
+  const GHOST_DT = 1 / 15;
+  let ghost = null, ghostRec = [], ghostRecT = 0;
+  function recordGhost(dt) {
+    ghostRecT += dt;
+    while (ghostRecT >= GHOST_DT && ghostRec.length < 3 * 15 * 300) {
+      ghostRecT -= GHOST_DT;
+      ghostRec.push(Math.round(car.x), Math.round(car.y), Math.round(car.h * 100) / 100);
+    }
+  }
+  function ghostAt(t) {
+    if (!ghost) return null;
+    const n = ghost.p.length / 3, f = t / ghost.dt, i = Math.floor(f);
+    if (i >= n - 1) return null;
+    const u = f - i, P = ghost.p;
+    const a = i * 3, b = a + 3;
+    return { x: P[a] + (P[b] - P[a]) * u, y: P[a + 1] + (P[b + 1] - P[a + 1]) * u, h: P[a + 2] + wrap(P[b + 2] - P[a + 2]) * u };
+  }
+  const totalStars = () => Object.values(store.get('bestStars', {})).reduce((a, b) => a + (+b || 0), 0);
+  const colorOk = (c) => COLORS.includes(c) || EXTRA_COLORS.some((e) => e.c === c && totalStars() >= e.need);
+  if (!colorOk(color)) color = COLORS[0];
+  let hat = store.get('hat', '');
+  if (!HATS.some((h) => h.id === hat && totalStars() >= h.need)) hat = '';
 
   function loadStage(i) {
     stageIdx = i;
@@ -86,11 +112,16 @@
     track.surf.forEach((q) => (q.path = sub(q.s0, q.s1)));
     track.quiet.forEach((q) => (q.path = sub(q.s0, q.s1)));
     iceHinted = false; iceHintT = 0; flashT = 0;
+    light = 1;
+
     particles = []; skids = []; passedTurns = new Set();
     ui.stage.textContent = String(BB.STAGES[i].id);
     placeCar(track.startS - 30);
     cam.x = car.x; cam.y = car.y; cam.a = car.h;
     runT = 0; running = false; stars = 0;
+    ghostRec = []; ghostRecT = GHOST_DT;   // 출발 순간(0초) 위치부터 기록
+    ghost = store.get('ghost_' + BB.STAGES[i].id, null);
+    if (!ghost || !Array.isArray(ghost.p) || !(ghost.dt > 0)) ghost = null;
     starTotal = track.items.filter((it) => it.kind === 'star').length;
     updateHud(true);
     On.joinStage(i);
@@ -130,7 +161,8 @@
     return T.pointAt(track, car.s + dist);
   }
   const surfAt = () => { if (car.pi) return null; const q = track.surf.find((q) => car.s >= q.s0 && car.s <= q.s1); return q ? q.kind : null; };
-  let jumpOK = 0, quietOK = 0, iceHintT = 0, iceHinted = false, forkHint = 0;
+  let jumpOK = 0, quietOK = 0, iceHintT = 0, iceHinted = false, forkHint = 0, doorOK = 0;
+  let light = 1;   // 밤길 헤드라이트 밝기 0..1.2
 
   // ---------- 조작: 기울이기 / 키보드 / 터치 / 버튼 ----------
   let tilt = 0, tiltSeen = false;
@@ -198,13 +230,32 @@
 
   // ---------- 시작 화면 ----------
   function buildTitle() {
+    const have = totalStars();
+    ui.starTotal.textContent = '★ ' + have;
     ui.colors.innerHTML = '';
-    COLORS.forEach((c) => {
+    COLORS.map((c) => ({ c, need: 0 })).concat(EXTRA_COLORS).forEach(({ c, need }) => {
       const b = document.createElement('button');
-      b.type = 'button'; b.className = 'swatch' + (c === color ? ' sel' : '');
-      b.style.background = c; b.setAttribute('aria-label', '차 색깔');
-      b.onclick = () => { color = c; store.set('color', c); buildTitle(); };
+      const open = have >= need;
+      b.type = 'button'; b.className = 'swatch' + (c === color ? ' sel' : '') + (open ? '' : ' locked');
+      b.style.background = c; b.setAttribute('aria-label', open ? '차 색깔' : '잠김: 별 ' + need + '개');
+      if (!open) b.textContent = '★' + need;
+      b.onclick = () => {
+        if (!open) { ui.titleMsg.textContent = '별 ' + need + '개를 모으면 열려요 (지금 ' + have + '개)'; return; }
+        color = c; store.set('color', c); buildTitle();
+      };
       ui.colors.appendChild(b);
+    });
+    ui.hats.innerHTML = '';
+    HATS.forEach((h) => {
+      const b = document.createElement('button');
+      const open = have >= h.need;
+      b.type = 'button'; b.className = 'hatBtn' + (h.id === hat ? ' sel' : '') + (open ? '' : ' locked');
+      b.textContent = open ? h.name : h.name + ' ★' + h.need;
+      b.onclick = () => {
+        if (!open) { ui.titleMsg.textContent = '별 ' + h.need + '개를 모으면 열려요 (지금 ' + have + '개)'; return; }
+        hat = h.id; store.set('hat', hat); buildTitle();
+      };
+      ui.hats.appendChild(b);
     });
     renderStagePick();
   }
@@ -251,9 +302,12 @@
 
     mode = !forceButtons && micOk ? 'mic' : 'buttons';
     started = true;
+    // 지난번 보정값이 있으면 10초 보정 건너뛰기 (「보정」 버튼으로 언제든 다시)
+    let usedSaved = false;
+    if (mode === 'mic' && !calibrated && A.importCal(store.get('cal', null))) { calibrated = true; usedSaved = true; }
     setupVoice();
     show(ui.title, false);
-    if (mode === 'mic' && !calibrated) startCalibration('play');
+    if (mode === 'mic' && (!calibrated || usedSaved)) startCalibration('play', usedSaved);
     else {
       if (mode === 'buttons' && !forceButtons) flash('마이크를 쓸 수 없어서 버튼으로 해요', 2.6);
       startPlay();
@@ -262,6 +316,7 @@
   ui.start.addEventListener('click', () => begin(false));
   // 버튼 모드는 마이크를 못 쓸 때만 자동으로 (목소리 되면 터치 조작 없음)
 
+  function nightIntro() { if (track.night) flash('밤이에요! 소리 내면 밝아져', 2.2); }
   function startPlay() {
     show(ui.title, false); show(ui.calib, false); show(ui.arrive, false);
     show(ui.hud, true);
@@ -271,6 +326,7 @@
     state = 'play';
     if (mode === 'mic') A.startRecording();
     renderRoom();
+    nightIntro();
   }
 
   // ---------- 친구랑 같이 (방) ----------
@@ -291,12 +347,21 @@
     if (inRoom) {
       ui.roomInfo.innerHTML = '';
       const a = document.createElement('div'); a.append('방 '); const b = document.createElement('b'); b.textContent = Net.code; a.append(b);
-      const names = Net.members.map((m) => (m.id === Net.myId ? m.name + '(나)' : m.name));
-      const c = document.createElement('div'); c.textContent = names.join(', ');
+      const stN = (m) => ((m.stage ?? 0) + 1) + '번';
+      const stLabel = (m) => (m.st === 'calib' ? '보정 중' : m.st === 'title' ? '처음 화면' : m.st === 'arrived' ? '도착 · ' + stN(m) : '달리는 중 · ' + stN(m));
+      const c = document.createElement('div'); c.className = 'roomList';
+      Net.members.forEach((m) => {
+        const row = document.createElement('div');
+        const dot = document.createElement('span'); dot.className = 'dot ' + (m.st === 'calib' || m.st === 'title' ? 'wait' : 'ok');
+        row.append(dot, (m.id === Net.myId ? m.name + '(나)' : m.name) + ' — ' + stLabel(m));
+        c.appendChild(row);
+      });
       ui.roomInfo.append(a, c);
       const n = Net.members.length - 1;
+      const waitN = Net.members.filter((m) => m.id !== Net.myId && (m.st === 'calib' || m.st === 'title')).length;
       show(ui.friends, n > 0 || (On.on && On.peers.length > 0));
-      if (n > 0) ui.friends.textContent = '친구 ' + n + '명' + (Net.voiceCount() ? ' · 목소리 연결 ' + Net.voiceCount() : '');
+      if (n > 0) ui.friends.textContent = '친구 ' + n + '명' + (waitN ? ' (' + waitN + '명 아직 준비 중)' : '') + (Net.voiceCount() ? ' · 목소리 ' + Net.voiceCount() : '');
+      ui.raceBtn.textContent = '같이 출발 · ' + (stageIdx + 1) + '번';
     }
     ui.voiceBtn.textContent = Net.voice ? '친구 소리 켬' : '친구 소리 끔';
     ui.voiceBtn.classList.toggle('off', !Net.voice);
@@ -365,12 +430,13 @@
 
   // ---------- 보정 (10초) ----------
   let calib = null;
-  function startCalibration(after) {
+  // quick: 저장된 보정을 쓰되 주변 소음만 1초 다시 재기
+  function startCalibration(after, quick) {
     stateBeforeCalib = after;
     state = 'calib';
     show(ui.arrive, false); show(ui.hud, false); show(ui.pad, false); setBubble('', '');
     show(ui.calib, true);
-    calib = { t: 0, noiseAcc: {}, noiseDb: [], boong: [], kkiik: [], noiseSet: false, done: false, ok: true };
+    calib = { t: 0, noiseAcc: {}, noiseDb: [], boong: [], kkiik: [], noiseSet: false, done: false, ok: true, quick: !!quick };
     A.keys.boong = A.keys.kkiik = false;
   }
   ui.recal.addEventListener('click', () => {
@@ -383,6 +449,17 @@
     c.t += dt;
     const t1 = CALIB.quiet, t2 = t1 + CALIB.boong, t3 = t2 + CALIB.kkiik;
     let text, cls = '';
+    if (c.quick && c.t >= t1) {
+      // 소음만 다시: 소음이 커졌으면 "소리 났다" 기준도 그만큼 올림
+      const old = A.cal.noiseDb;
+      A.setNoise(c.noiseAcc, c.noiseDb);
+      const d = A.cal.noiseDb - old;
+      if (d > 0) A.cal.thrOn += d;
+      show(ui.calib, false);
+      startPlay();
+      flash('지난번 보정을 써요 · 「보정」으로 다시', 2.4);
+      return;
+    }
     if (c.t < t1) {
       text = '쉿, 잠깐 조용히';
       if (raw) { A.captureNoiseFrame(c.noiseAcc); c.noiseDb.push(raw.db); }
@@ -394,7 +471,7 @@
       text = '끼익! 한 번 해 봐'; cls = 'kkiik';
       if (raw) c.kkiik.push(raw);
     } else {
-      if (!c.done) { c.done = true; c.ok = A.applyCalibration({ boong: c.boong, kkiik: c.kkiik }); calibrated = true; }
+      if (!c.done) { c.done = true; c.ok = A.applyCalibration({ boong: c.boong, kkiik: c.kkiik }); calibrated = true; if (c.ok) store.set('cal', A.exportCal()); }
       text = '좋아!';
       ui.calibSub.textContent = c.ok ? '' : '소리가 잘 안 들렸어요. 「보정」을 눌러 다시 해도 돼요';
       if (c.t > t3 + CALIB.ok + (c.ok ? 0 : 1.5)) {
@@ -413,7 +490,7 @@
     }
     if (ui.calibText.textContent !== text) ui.calibText.textContent = text;
     ui.calibText.style.color = cls === 'boong' ? '#e8673c' : cls === 'kkiik' ? '#1597b8' : '';
-    ui.calibFill.style.width = Math.min(100, (c.t / t3) * 100) + '%';
+    ui.calibFill.style.width = Math.min(100, (c.t / (c.quick ? t1 : t3)) * 100) + '%';
   }
 
   // ---------- 경적 ----------
@@ -440,7 +517,10 @@
     const best = store.get('best', {});
     const prev = best[id];
     const isNew = !prev || runT < prev;
-    if (isNew) { best[id] = Math.round(runT * 100) / 100; store.set('best', best); }
+    if (isNew) {
+      best[id] = Math.round(runT * 100) / 100; store.set('best', best);
+      if (ghostRec.length > 6 && !store.set('ghost_' + id, { dt: GHOST_DT, p: ghostRec })) store.del('ghost_' + id);
+    }
     const bs = store.get('bestStars', {});
     bs[id] = Math.max(bs[id] || 0, stars); store.set('bestStars', bs);
     if (isNew && prev) Sfx.record();
@@ -471,12 +551,14 @@
     stageIdx = (stageIdx + 1) % BB.STAGES.length;
     loadStage(stageIdx);
     state = 'play';
+    nightIntro();
   });
   ui.retry.addEventListener('click', () => {
     stopPlayback(); Net.endRace();
     show(ui.arrive, false);
     loadStage(stageIdx);
     state = 'play';
+    nightIntro();
   });
   ui.playback.addEventListener('click', () => {
     if (!recUrl) return;
@@ -642,6 +724,7 @@
 
     collideWalls();
     collideTrees();
+    collideDoors(dt, type);
     pickItems();
 
     // 어디 있나
@@ -816,6 +899,32 @@
       }
     }
   }
+  // 끼익 문: 문 앞 DOOR_RANGE(320px) 안에서 끼익 하면 1.6초 열림. 닫혀 있으면 벽처럼 튕김
+  const DOOR_RANGE = 320;
+  function collideDoors(dt, type) {
+    for (const d of track.doors) {
+      const before = car.pi === 0 && car.s > d.s - DOOR_RANGE && car.s < d.s + 10;
+      if (before && type === 'kkiik' && state === 'play') {
+        if (d.open <= 0) { Sfx.star(); if (!d.used) { d.used = true; doorOK++; } }
+        d.open = 1.6;
+      }
+      if (d.open > 0) continue;
+      const q = T.segProj(d.x1, d.y1, d.x2, d.y2, car.x, car.y);
+      const min = CAR_R + 6;
+      if (q.d < min) {
+        const nx = (car.x - q.qx) / (q.d || 1), ny = (car.y - q.qy) / (q.d || 1);
+        car.x = q.qx + nx * min; car.y = q.qy + ny * min;
+        bounce(nx, ny, 1.5);
+      }
+    }
+  }
+  function stepDoors(dt) {
+    for (const d of track.doors) {
+      if (d.open > 0) d.open -= dt;
+      d.lift += ((d.open > 0 ? 1 : 0) - d.lift) * Math.min(1, dt * 8);
+    }
+  }
+
   function collideTrees() {
     for (const t of track.trees) {
       const dx = car.x - t.x, dy = car.y - t.y, d = Math.hypot(dx, dy), min = CAR_R + TREE_R;
@@ -878,7 +987,7 @@
     const W = BB.ROAD_W, G = BB.GRASS_W;
     g.lineJoin = 'round'; g.lineCap = 'round';
 
-    g.fillStyle = 'rgba(255,255,255,.75)';
+    g.fillStyle = track.night ? 'rgba(120,130,200,.25)' : 'rgba(255,255,255,.75)';
     for (const c of track.clouds) {
       g.beginPath();
       g.arc(c.x, c.y, c.r, 0, 7); g.arc(c.x + c.r * 0.9, c.y + c.r * 0.2, c.r * 0.7, 0, 7); g.arc(c.x - c.r * 0.9, c.y + c.r * 0.25, c.r * 0.6, 0, 7);
@@ -964,6 +1073,37 @@
     }
   }
 
+  function drawDoors2D() {
+    for (const d of track.doors) {
+      g.save(); g.translate(d.x, d.y); g.rotate(d.h);
+      const hw = BB.ROAD_W / 2 + BB.GRASS_W;
+      // 기둥
+      g.fillStyle = '#6b6178';
+      g.beginPath(); g.arc(-hw, 0, 9, 0, 7); g.arc(hw, 0, 9, 0, 7); g.fill();
+      // 차단봉: 열리면 왼쪽 기둥 쪽으로 접힘
+      const L = hw * 2 * (1 - 0.85 * d.lift);
+      g.lineCap = 'round';
+      g.strokeStyle = '#e55858'; g.lineWidth = 12;
+      g.beginPath(); g.moveTo(-hw, 0); g.lineTo(-hw + L, 0); g.stroke();
+      g.setLineDash([14, 14]); g.strokeStyle = '#fff'; g.lineWidth = 8;
+      g.beginPath(); g.moveTo(-hw, 0); g.lineTo(-hw + L, 0); g.stroke(); g.setLineDash([]);
+      if (d.lift < 0.5) {
+        g.rotate(-d.h + cam.a);
+        g.fillStyle = '#fff'; D.rr(g, -26, -36, 52, 22, 10); g.fill();
+        g.fillStyle = '#1597b8'; g.font = '14px Jua, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText('끼익!', 0, -25);
+      }
+      g.restore();
+    }
+  }
+  function nightOverlay(cx, cy, R) {
+    const gr = g.createRadialGradient(cx, cy, R * 0.15, cx, cy, R);
+    gr.addColorStop(0, 'rgba(10,12,40,0)');
+    gr.addColorStop(0.6, 'rgba(10,12,40,.35)');
+    gr.addColorStop(1, 'rgba(10,12,40,.94)');
+    g.fillStyle = gr; g.fillRect(0, 0, cw, ch);
+  }
+
   function drawTrees2D() {
     for (const t of track.trees) {
       const w = t.wobble > 0 ? Math.sin(t.wobble * 40) * t.wobble * 6 : 0;
@@ -993,7 +1133,7 @@
     g.save();
     g.globalAlpha = opts.alpha == null ? 1 : opts.alpha;
     g.translate(x, y); g.rotate(h + (opts.spin || 0)); g.scale(opts.sc || 1, opts.sc || 1);
-    D.carTop(g, col, steer, opts.turbo);
+    D.carTop(g, col, steer, opts.turbo, opts.hat);
     g.restore();
   }
 
@@ -1095,6 +1235,11 @@
       if (jumpOK < 2) for (const g of track.gaps) {
         if (car.s > g.ramp0 - 320 && car.s < g.s0) { setBubble(btn ? '붕 꾹 눌러 점프!' : '크게 붕!!', 'boong'); return; }
       }
+      // 끼익 문 앞
+      for (const d of track.doors) {
+        // 처음 두 번은 다가갈 때, 그 뒤로도 닫힌 문 앞에서 느려지면 항상
+        if (d.open <= 0 && car.s > d.s - DOOR_RANGE && car.s < d.s && (doorOK < 2 || speed < 60)) { setBubble(btn ? '끼익 꾹! 문 열기' : '끼익! 문 열기', 'kkiik'); return; }
+      }
       // 쉿 구간 앞·안
       if (quietOK < 2) for (const q of track.quiet) {
         if (car.s > q.s0 - 320 && car.s < q.s1) { setBubble(car.s < q.s0 - 120 ? '곧 쉿! 미리 붕~' : '쉿! 조용히…', 'quiet'); return; }
@@ -1131,7 +1276,8 @@
     const tgt = state === 'play' ? steerInput() : 0;
     car.steer += (tgt - car.steer) * Math.min(1, dt * 10);
     if (state === 'play' || state === 'arrived') stepCar(dt);
-    if (state === 'play' && running) runT += dt;
+    stepDoors(dt);
+    if (state === 'play' && running) { runT += dt; recordGhost(dt); }
     if (state === 'play' && !running && Math.hypot(car.vx, car.vy) > 5) running = true;
   }
 
@@ -1149,14 +1295,20 @@
 
     if (state === 'count') {
       countT -= dt;
-      if (countT <= 0) { state = 'play'; flash('붕!', 0.7); if (mode === 'mic') A.startRecording(); renderRoom(); }
+      if (countT <= 0) { state = 'play'; flash(track.night ? '붕! 소리 내면 밝아져' : '붕!', track.night ? 1.6 : 0.7); if (mode === 'mic') A.startRecording(); renderRoom(); }
     }
     if (state === 'play' || state === 'arrived') stepCar(dt);
     if (state === 'play') {
       if (!running && Math.hypot(car.vx, car.vy) > 5) running = true;
-      if (running) runT += dt;
+      if (running) { runT += dt; recordGhost(dt); }
     }
     stepParticles(dt);
+    stepDoors(dt);
+    if (track.night) {
+      // 소리를 낼수록 밝게 (켜질 땐 빠르게, 꺼질 땐 천천히)
+      const ty = inputType(), want = state !== 'play' ? 1 : ty === 'none' ? 0.15 : Math.min(1.2, 0.5 + 0.6 * inputIntensity());
+      light += (want - light) * Math.min(1, dt * (want > light ? 8 : 1.4));
+    }
     if (car.blink > 0) car.blink -= dt;
     if (myHorn > 0) myHorn -= dt;
     peerHorn.forEach((v, k) => { if (v - dt <= 0) peerHorn.delete(k); else peerHorn.set(k, v - dt); });
@@ -1169,6 +1321,7 @@
     else if (mode === 'buttons') Sfx.engine(0, false);
     if (state === 'play' || state === 'arrived') On.sendState(car, color, state === 'arrived');
     Net.stage = stageIdx;
+    Net.setStatus(state, stageIdx, hat);
     if (state === 'play' || state === 'arrived' || state === 'count') Net.sendState(car, stageIdx, state === 'arrived');
 
     // 카메라: 진행 방향을 위로
@@ -1184,15 +1337,21 @@
     // 친구 차 (같은 스테이지)
     const peers = On.peers.map((p) => ({ ...p, horn: peerHorn.get(p.key) || 0, label: On.nameOf(p.id) || '친구' }))
       .concat(Net.peers.map((p) => ({ ...p, horn: peerHorn.get(p.key) || 0, label: p.name })));
+    // 내 최고 기록 고스트 (같이 하는 경주 중엔 안 보임)
+    if (state === 'play' && running && !Net.race) {
+      const gp = ghostAt(runT);
+      if (gp) peers.push({ key: 'ghost', ...gp, c: color, alpha: 0.32, label: '내 최고', hat, horn: 0 });
+    }
 
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     const sx = shake ? (Math.random() - 0.5) * 16 * shake : 0, sy = shake ? (Math.random() - 0.5) * 16 * shake : 0;
     if (view === '3d' && state !== 'title') {
       g.save(); g.translate(sx, sy);
-      BB.Render3D.draw(g, cw, ch, { track, car, camA: cam.a, particles, peers, color, myHorn, mainI: car.pi ? T.pointAt(track, car.s).i : car.segI });
+      const r3 = BB.Render3D.draw(g, cw, ch, { track, car, camA: cam.a, particles, peers, color, hat, myHorn, mainI: car.pi ? T.pointAt(track, car.s).i : car.segI });
       g.restore();
+      if (track.night && r3) nightOverlay(r3.x, r3.y - 110, (cw / 400) * (130 + 250 * light));
     } else {
-      g.fillStyle = '#bfe6ff'; g.fillRect(0, 0, cw, ch);
+      g.fillStyle = track.night ? '#1d2252' : '#bfe6ff'; g.fillRect(0, 0, cw, ch);
       g.save();
       g.translate(cw / 2 + sx, ch * 0.68 + sy);
       g.scale(cam.z, cam.z);
@@ -1200,7 +1359,7 @@
       g.translate(-cam.x, -cam.y);
       drawWorld2D();
       drawParticles2D();
-      for (const p of peers) drawCar2D(p.x, p.y, p.h, p.c, 0, { alpha: 0.75 });
+      for (const p of peers) drawCar2D(p.x, p.y, p.h, p.c, 0, { alpha: p.alpha || 0.75, hat: p.hat });
       let sc = 1, spin = 0, alpha = 1;
       if (car.fallT >= 0) { sc = Math.max(0.05, 1 - car.fallT / 0.75); spin = car.fallT * 6; }
       if (car.blink > 0 && Math.floor(car.blink * 10) % 2 === 0) alpha = 0.35;
@@ -1209,9 +1368,14 @@
         g.fillStyle = 'rgba(40,30,60,.25)'; D.rr(g, -15, -22, 30, 46, 13); g.fill(); g.restore();
         sc *= 1 + car.z / 110;
       }
-      drawCar2D(car.x, car.y, car.h, color, car.steer, { sc, spin, alpha, turbo: car.turbo > 0 });
+      drawDoors2D();
+      drawCar2D(car.x, car.y, car.h, color, car.steer, { sc, spin, alpha, turbo: car.turbo > 0, hat });
       drawTrees2D();
       g.restore();
+      if (track.night) {
+        const [cx, cy] = w2s(car.x + Math.sin(car.h) * 60, car.y - Math.cos(car.h) * 60);
+        nightOverlay(cx, cy, (110 + 230 * light) * cam.z);
+      }
       // 이름표 / 빵!
       for (const p of peers) {
         const [x, y] = w2s(p.x, p.y);
@@ -1237,7 +1401,7 @@
 
   // 테스트/디버그용
   window.BBdebug = {
-    dbg, simStep, keyDir, padState, setTilt(v) { tilt = v; }, aheadPoint, get jumpOK() { return jumpOK; }, get quietOK() { return quietOK; },
+    dbg, simStep, keyDir, padState, setTilt(v) { tilt = v; }, aheadPoint, get jumpOK() { return jumpOK; }, get quietOK() { return quietOK; }, get light() { return light; },
     get state() { return state; }, car, get track() { return track; }, loadStage,
     startPlay(m) { mode = m || 'buttons'; startPlay(); }, startCalibration, get stageIdx() { return stageIdx; },
     get runT() { return runT; }, get stars() { return stars; }, setView(v) { view = v; applyView(); },

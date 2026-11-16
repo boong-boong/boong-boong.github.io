@@ -29,6 +29,33 @@
   let localStream = null, voiceReady = false;
   const cars = new Map();     // id -> 마지막 위치
   const rtc = new Map();      // id -> { pc, audio, pending: [] }
+  // 방 인원은 Supabase 접속자 목록 + 2초마다 오는 안부(hello)를 합쳐서 판단
+  // (접속자 목록은 상태를 자주 바꾸면 잠깐 어긋날 때가 있어서)
+  const lastSeen = new Map(); // id -> 마지막으로 소식(접속자 목록/안부/위치/신호)이 온 때
+  const known = new Map();    // id -> 안부로 받은 정보
+  let presenceList = [];
+  const seen = (id) => lastSeen.set(id, performance.now());
+  function rebuildMembers() {
+    const now = performance.now(), map = new Map();
+    presenceList.forEach((m) => map.set(m.id, m));
+    known.forEach((k, id) => { if (now - k.t < 8000) map.set(id, { ...(map.get(id) || {}), ...k, id }); });
+    if (N.on) map.set(myId, { id: myId, name: me.name, color: me.color, ready: me.ready, st: me.st || 'title', stage: me.stage ?? null, hat: me.hat || '' });
+    N.members = [...map.values()];
+  }
+  function sendHello() { if (N.on) send('hello', { id: myId, name: me.name, color: me.color, ready: !!me.ready, st: me.st || 'title', stage: me.stage ?? null, hat: me.hat || '' }); }
+  setInterval(() => {
+    if (!N.on) return;
+    sendHello();
+    const now = performance.now();
+    presenceList.forEach((m) => lastSeen.set(m.id, now));
+    for (const id of [...rtc.keys()]) if (now - (lastSeen.get(id) || 0) > 8000) closePeer(id);
+    for (const id of [...cars.keys()]) if (now - (lastSeen.get(id) || 0) > 8000) cars.delete(id);
+    for (const id of [...known.keys()]) if (now - known.get(id).t > 8000) known.delete(id);
+    const before = N.members.length;
+    rebuildMembers();
+    syncVoice();
+    if (before !== N.members.length) changed();
+  }, 2000);
 
   const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
   const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
@@ -53,14 +80,19 @@
     if (!window.supabase || !BB.NET_CONFIG) return { ok: false, why: '연결 준비가 안 됐어요 (인터넷 확인)' };
     await leave();
     me = { name: str(name, 12) || '친구', color, ready: voiceReady };
-    if (!client) client = window.supabase.createClient(BB.NET_CONFIG.url, BB.NET_CONFIG.anonKey, { realtime: { params: { eventsPerSecond: 30 } } });
+    if (!client) client = window.supabase.createClient(BB.NET_CONFIG.url, BB.NET_CONFIG.anonKey, { realtime: { params: { eventsPerSecond: 40 } } });
     ch = client.channel('boong-' + code, { config: { broadcast: { self: false }, presence: { key: myId } } });
 
     ch.on('broadcast', { event: 'car' }, ({ payload: p }) => {
       if (!p || typeof p.id !== 'string' || p.id === myId) return;
       const x = num(p.x), y = num(p.y);
       if (x == null || y == null) return;
-      cars.set(p.id, { x, y, h: num(p.h) || 0, s: num(p.s) || 0, z: num(p.z) || 0, st: num(p.st), f: p.f === 1, t: performance.now() });
+      // 받은 위치 두 개로 속도를 구해 두고, 그리는 사이에는 조금 앞으로 예측 (초당 10번만 받으니 부드럽게)
+      seen(p.id);
+      const now = performance.now(), prev = cars.get(p.id);
+      let vx = 0, vy = 0;
+      if (prev && now - prev.t > 20 && now - prev.t < 500) { vx = (x - prev.x) / ((now - prev.t) / 1000); vy = (y - prev.y) / ((now - prev.t) / 1000); }
+      cars.set(p.id, { x, y, vx, vy, h: num(p.h) || 0, s: num(p.s) || 0, z: num(p.z) || 0, st: num(p.st), f: p.f === 1, t: now });
     });
     ch.on('broadcast', { event: 'horn' }, ({ payload: p }) => { if (p && typeof p.id === 'string' && N.onHorn) N.onHorn(p.id); });
     ch.on('broadcast', { event: 'start' }, ({ payload: p }) => {
@@ -78,16 +110,29 @@
       N.results.push({ id: p.id, name: str(p.name, 12) || '친구', time: t, stars: num(p.stars) || 0 });
       changed();
     });
-    ch.on('broadcast', { event: 'sig' }, ({ payload: p }) => { if (p && p.to === myId && typeof p.from === 'string') onSignal(p); });
+    ch.on('broadcast', { event: 'sig' }, ({ payload: p }) => { if (p && p.to === myId && typeof p.from === 'string') { seen(p.from); onSignal(p); } });
+    ch.on('broadcast', { event: 'hello' }, ({ payload: p }) => {
+      if (!p || typeof p.id !== 'string' || p.id === myId) return;
+      seen(p.id);
+      known.set(p.id, {
+        name: str(p.name, 12) || '친구', color: /^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : '#9b8cff', ready: !!p.ready,
+        st: ['title', 'calib', 'play', 'count', 'arrived'].includes(p.st) ? p.st : 'title', stage: num(p.stage), hat: str(p.hat, 10), t: performance.now(),
+      });
+      const had = N.members.some((m) => m.id === p.id);
+      rebuildMembers(); syncVoice();
+      if (!had) sendHello();     // 새로 온 친구에게 나도 바로 알림
+      changed();
+    });
     ch.on('presence', { event: 'sync' }, () => {
       const st = ch.presenceState();
-      N.members = Object.entries(st).map(([id, arr]) => {
+      presenceList = Object.entries(st).map(([id, arr]) => {
         const m = (arr && arr[0]) || {};
-        return { id, name: str(m.name, 12) || '친구', color: /^#[0-9a-f]{6}$/i.test(m.color || '') ? m.color : '#9b8cff', ready: !!m.ready };
+        return { id, name: str(m.name, 12) || '친구', color: /^#[0-9a-f]{6}$/i.test(m.color || '') ? m.color : '#9b8cff', ready: !!m.ready,
+          st: ['title', 'calib', 'play', 'count', 'arrived'].includes(m.st) ? m.st : 'title', stage: num(m.stage), hat: str(m.hat, 10) };
       });
-      // 나간 친구 정리
-      for (const id of [...rtc.keys()]) if (!N.members.some((m) => m.id === id)) closePeer(id);
-      for (const id of [...cars.keys()]) if (!N.members.some((m) => m.id === id)) cars.delete(id);
+      const now = performance.now();
+      presenceList.forEach((m) => lastSeen.set(m.id, now));
+      rebuildMembers();
       syncVoice();
       changed();
     });
@@ -101,6 +146,7 @@
     });
     if (!ok) { await leave(); return { ok: false, why: '방에 연결하지 못했어요' }; }
     N.on = true; N.code = code;
+    rebuildMembers(); sendHello();
     try { history.replaceState(null, '', '#room-' + code); } catch (e) {}
     changed();
     return { ok: true };
@@ -108,7 +154,7 @@
 
   async function leave() {
     for (const id of [...rtc.keys()]) closePeer(id);
-    cars.clear();
+    cars.clear(); lastSeen.clear(); known.clear(); presenceList = [];
     if (ch) { try { await ch.untrack(); } catch (e) {} try { await client.removeChannel(ch); } catch (e) {} }
     ch = null; N.on = false; N.code = null; N.members = []; N.results = []; N.race = null;
     try { if (location.hash.startsWith('#room-')) history.replaceState(null, '', location.pathname); } catch (e) {}
@@ -120,7 +166,7 @@
   function sendState(car, stage, finished) {
     if (!N.on) return;
     const now = performance.now();
-    if (now - lastSend < 80) return;
+    if (now - lastSend < 100) return;
     lastSend = now;
     send('car', { id: myId, x: Math.round(car.x), y: Math.round(car.y), h: Math.round(car.h * 100) / 100, s: Math.round(car.s), z: Math.round(car.z || 0), st: stage, f: finished ? 1 : 0 });
   }
@@ -142,6 +188,12 @@
   }
 
   // 혼자 다시 하기·다음 스테이지·처음 화면: 같이 하던 경주는 끝 (다음 기록이 그 순위에 섞이지 않게)
+  // 내 상태(처음 화면/보정 중/게임 중)와 스테이지, 모자를 방 사람들에게 (바뀔 때만)
+  function setStatus(st, stage, hat) {
+    if (me.st === st && me.stage === stage && me.hat === hat) return;
+    me.st = st; me.stage = stage; me.hat = hat;
+    if (N.on) { rebuildMembers(); sendHello(); changed(); }
+  }
   function endRace() { if (N.race) { N.race = null; N.results = []; changed(); } }
 
   function peerList() {
@@ -150,7 +202,8 @@
       if (now - c.t > 4000) return;
       if (c.st !== N.stage) return;
       const m = N.members.find((mm) => mm.id === id);
-      out.push({ key: 'n:' + id, id: null, x: c.x, y: c.y, h: c.h, s: c.s, z: c.z, c: m ? m.color : '#9b8cff', name: m ? m.name : '친구', f: c.f });
+      const ahead = Math.min(0.2, (now - c.t) / 1000);
+      out.push({ key: 'n:' + id, id: null, x: c.x + c.vx * ahead, y: c.y + c.vy * ahead, h: c.h, s: c.s, z: c.z, c: m ? m.color : '#9b8cff', name: m ? m.name : '친구', f: c.f, hat: m ? m.hat : '' });
     });
     return out;
   }
@@ -170,7 +223,7 @@
     }
     voiceReady = true;
     me.ready = true;
-    if (ch && N.on) { try { await ch.track(me); } catch (e) {} }
+    if (ch && N.on) { try { await ch.track(me); } catch (e) {} rebuildMembers(); sendHello(); }
     syncVoice();
   }
   function syncVoice() {
@@ -200,6 +253,11 @@
       }
       changed();
     };
+    // 6초 안에 안 이어지면 (신호 메시지가 빠졌을 수 있음) 끊고 다시 시도
+    setTimeout(() => {
+      const cur = rtc.get(id);
+      if (cur && cur.pc === pc && pc.connectionState !== 'connected') { closePeer(id); syncVoice(); }
+    }, 6000);
     if (initiator) {
       pc.createOffer().then((o) => pc.setLocalDescription(o)).then(() => {
         send('sig', { to: id, from: myId, type: 'offer', sdp: pc.localDescription.toJSON() });
@@ -244,12 +302,13 @@
     rtc.forEach((r) => { r.audio.muted = !on; if (on) r.audio.play().catch(() => {}); });
     changed();
   }
+  function voiceStates() { const o = {}; rtc.forEach((r, id) => (o[id] = r.pc.connectionState + '/' + r.pc.signalingState)); return { me: myId, ready: voiceReady, hasStream: !!localStream, members: N.members.map((m) => m.id + ':' + m.ready + ':' + m.st), rtc: o }; }
   function voiceCount() {
     let n = 0;
     rtc.forEach((r) => { if (r.pc.connectionState === 'connected') n++; });
     return n;
   }
 
-  Object.assign(N, { makeCode, cleanCode, join, leave, sendState, horn, startRace, finish, endRace, enableVoice, setVoice, kickAudio, voiceCount, stage: 0, raceStage: null });
+  Object.assign(N, { makeCode, cleanCode, join, leave, sendState, horn, startRace, finish, endRace, setStatus, enableVoice, setVoice, kickAudio, voiceCount, voiceStates, stage: 0, raceStage: null });
   BB.Net = N;
 })();

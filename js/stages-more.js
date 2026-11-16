@@ -14,7 +14,7 @@
 
   function compile(id, name, parts, opt) {
     opt = opt || {};
-    const def = { id, name, parts: [], stars: opt.stars || { every: 190 }, bolts: [], trees: [], gaps: [], quiet: [], surf: [] };
+    const def = { id, name, parts: [], stars: opt.stars || { every: 190 }, bolts: [], trees: [], gaps: [], quiet: [], surf: [], doors: [], night: !!opt.night };
     let s = 0;
     parts.forEach((p) => {
       const len = p.s != null ? p.s : (Math.abs(p.t) * Math.PI / 180) * p.r;
@@ -30,8 +30,9 @@
         else def.surf.push([s + p.surf[0], p.surf[1], p.surf[2]]);
       }
       if (p.trees) p.trees.forEach(([a, off]) => def.trees.push([s + a, off]));
+      if (p.doors) p.doors.forEach((a) => def.doors.push(s + a));
       if (p.bolt != null) [].concat(p.bolt).forEach((a) => def.bolts.push(s + a));
-      if (p.fork) def.branch = { at: s + p.forkAt, parts: forkBranch(p.fork === 'L' ? -1 : 1) };
+      if (p.fork) def.branch = { at: s + p.forkAt, parts: forkBranch(p.fork === 'L' ? -1 : 1), trees: p.forkTrees || [] };
       s += len;
     });
     if (opt.wave) def.stars.wave = opt.wave;
@@ -105,7 +106,7 @@
       { s: 1000, trees: [[700, 50]], quiet: [520, 310, 1] }, { t: -40, r: 550 }, { s: 500 },
     ]),
     compile(25, '진흙 갈림길', [
-      { s: 750, fork: 'L', forkAt: 400 }, FORK(L),
+      { s: 750, fork: 'L', forkAt: 400, forkTrees: [[480, -45], [760, 45]] }, FORK(L),
       { s: 1800, surf: [200, 300, 'mud'], quiet: [850, 265, -1] }, { t: 160, r: 95 },
       { s: 1300, gap: [550, 250] },
     ]),
@@ -126,20 +127,37 @@
       { s: 1350, surf: [100, 250, 'mud'], gap: [800, 200] },
     ]),
     compile(29, '미로', [
-      { s: 750, fork: 'R', forkAt: 400 }, FORK(R),
+      { s: 750, fork: 'R', forkAt: 400, forkTrees: [[450, 45], [700, -45], [950, 45]] }, FORK(R),
       { s: 1800, surf: [100, 300, 'ice'], quiet: [700, 360, 1], trees: [[1300, -45]] }, { t: -160, r: 95 },
       { s: 1000, gap: [450, 260] }, { t: 160, r: 95 }, { s: 900, trees: [[250, 45], [500, -45]] },
     ]),
     compile(30, '최종 보스', [
-      { s: 750, fork: 'L', forkAt: 400 }, FORK(L),
+      { s: 750, fork: 'L', forkAt: 400, forkTrees: [[450, -48], [680, 48], [910, -48]] }, FORK(L),
       { s: 1800, surf: [150, 280, 'mud'], quiet: [800, 260, -1] }, { t: 165, r: 100, surf: 'ice' },
       { s: 1150, surf: [0, 300, 'ice'], gap: [600, 260] }, { t: -160, r: 95 },
       { s: 2100, bolt: 600, gap: [1150, 400] }, { t: 50, r: 700 },
       { s: 1100, trees: [[250, -48], [500, 48], [750, -48]] },
     ]),
   ];
+  // ---------- 보너스 31~33: 새 요소 (밤길 · 끼익 문) ----------
+  more.push(
+    compile(31, '밤길', [
+      { s: 900 }, { t: -50, r: 550 }, { s: 800, trees: [[400, 48]] }, { t: 160, r: 95 },
+      { s: 900, trees: [[450, -48]] }, { t: 50, r: 600 }, { s: 800 },
+    ], { night: true }),
+    compile(32, '끼익 문', [
+      { s: 1000, doors: [550] }, { t: 45, r: 600 },
+      { s: 1300, doors: [380], gap: [850, 200] }, { t: -160, r: 95 },
+      { s: 1000, doors: [500] }, { t: 40, r: 600 }, { s: 900, doors: [350] },
+    ]),
+    compile(33, '한밤의 곰', [
+      { s: 1250, quiet: [650, 330, 1] }, { t: -45, r: 600 },
+      { s: 1000, doors: [450] }, { t: 160, r: 95 },
+      { s: 1250, quiet: [700, 320, -1] }, { t: 40, r: 600 }, { s: 900, doors: [350] },
+    ], { night: true }),
+  );
   more.forEach((d) => BB.STAGES.push(d));
 
   // 난이도 묶음 (시작 화면 표시용)
-  BB.tierOf = (id) => id <= 5 ? '입문' : id <= 10 ? '새 요소' : id <= 15 ? '중급' : id <= 20 ? '상급' : id <= 25 ? '고급' : '최고';
+  BB.tierOf = (id) => id <= 5 ? '입문' : id <= 10 ? '새 요소' : id <= 15 ? '중급' : id <= 20 ? '상급' : id <= 25 ? '고급' : id <= 30 ? '최고' : '보너스';
 })();

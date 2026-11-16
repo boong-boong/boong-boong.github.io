@@ -8,6 +8,7 @@
   const CAR_K = 0.55;   // 차 그림(54칸 너비)을 실제 차 너비(30px)에 맞춤
 
   function draw(g, cw, ch, S) {
+    const out = { x: cw / 2, y: ch * 0.6, k: 1 };
     const { track, car, camA } = S;
     const W = BB.ROAD_W, G = BB.GRASS_W;
     const F = cw * 0.9;
@@ -120,6 +121,21 @@
       }
     }
 
+    // 끼익 문: 기둥 2개 + 차단봉 (열리면 위로 들림)
+    for (const d of track.doors) {
+      const r = T.right(d.h), hw = W / 2 + G;
+      const lx = d.x - r.x * hw, ly = d.y - r.y * hw, rx2 = d.x + r.x * hw, ry2 = d.y + r.y * hw;
+      for (const [px, py] of [[lx, ly], [rx2, ry2]]) {
+        quad([[px - r.x * 5, py - r.y * 5, 0], [px + r.x * 5, py + r.y * 5, 0], [px + r.x * 5, py + r.y * 5, 34], [px - r.x * 5, py - r.y * 5, 34]], '#6b6178', -3);
+      }
+      const L = hw * 2 * (1 - 0.85 * d.lift), up = d.lift * 40;
+      const n = 6;
+      for (let k = 0; k < n; k++) {
+        const a0 = (L * k) / n, a1 = (L * (k + 1)) / n;
+        const z0 = 22 + up * (a0 / Math.max(1, L)), z1 = 22 + up * (a1 / Math.max(1, L));
+        quad([[lx + r.x * a0, ly + r.y * a0, z0 - 5], [lx + r.x * a1, ly + r.y * a1, z1 - 5], [lx + r.x * a1, ly + r.y * a1, z1 + 5], [lx + r.x * a0, ly + r.y * a0, z0 + 5]], k % 2 ? '#ffffff' : '#e55858', -3.5);
+      }
+    }
     // 곰 (작은 섬 위)
     const now = performance.now() / 1000;
     for (const q of track.quiet) {
@@ -143,7 +159,7 @@
     // 친구 차
     for (const pe of S.peers) {
       sprite(pe.x, pe.y, 0, (g2, x, y, k) => {
-        drawCarRear(g2, x, y, k * CAR_K, pe.c, wrap(pe.h - camA), 0, 0.85);
+        drawCarRear(g2, x, y, k * CAR_K, pe.c, wrap(pe.h - camA), 0, pe.alpha || 0.85, false, pe.hat);
         if (pe.label) label(g2, x, y - 64 * k * CAR_K, pe.label, k);
         if (pe.horn > 0) label(g2, x, y - 90 * k * CAR_K, '빵!', k, '#e8673c');
       }, -5);
@@ -152,8 +168,9 @@
     if (car.fallT < 0 || car.fallT < 0.75) {
       const drop = car.fallT >= 0 ? car.fallT * car.fallT * 160 : 0;
       sprite(car.x, car.y, (car.z || 0) - drop, (g2, x, y, k) => {
+        out.x = x; out.y = y; out.k = k;
         const blinkA = car.blink > 0 && Math.floor(car.blink * 10) % 2 === 0 ? 0.35 : 1;
-        drawCarRear(g2, x, y, k * CAR_K, S.color, wrap(car.h - camA), car.steer, blinkA, car.turbo > 0);
+        drawCarRear(g2, x, y, k * CAR_K, S.color, wrap(car.h - camA), car.steer, blinkA, car.turbo > 0, S.hat);
         if (S.myHorn > 0) label(g2, x, y - 90 * k * CAR_K, '빵!', k, '#e8673c');
       }, -6);
     }
@@ -161,7 +178,8 @@
     // 하늘
     const horizon = hy - F * Math.tan(pitch);
     const sky = g.createLinearGradient(0, 0, 0, ch);
-    sky.addColorStop(0, '#8fd0f7'); sky.addColorStop(Math.max(0.01, Math.min(0.99, horizon / ch)), '#dff3ff'); sky.addColorStop(1, '#bfe6ff');
+    if (track.night) { sky.addColorStop(0, '#0b1030'); sky.addColorStop(Math.max(0.01, Math.min(0.99, horizon / ch)), '#2b2f63'); sky.addColorStop(1, '#151a40'); }
+    else { sky.addColorStop(0, '#8fd0f7'); sky.addColorStop(Math.max(0.01, Math.min(0.99, horizon / ch)), '#dff3ff'); sky.addColorStop(1, '#bfe6ff'); }
     g.fillStyle = sky; g.fillRect(0, 0, cw, ch);
     // 먼 구름: 카메라 방향 따라 옆으로 흐름
     g.fillStyle = 'rgba(255,255,255,.9)';
@@ -185,6 +203,7 @@
       // 이음새 틈 메우기
       g.strokeStyle = it.fill; g.lineWidth = 1; g.stroke();
     }
+    return out;
   }
 
   function wrap(a) { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; }
@@ -207,7 +226,7 @@
   }
 
   // 뒤에서 본 둥근 차
-  function drawCarRear(g, x, y, k, color, yaw, steer, alpha, turbo) {
+  function drawCarRear(g, x, y, k, color, yaw, steer, alpha, turbo, hat) {
     g.save();
     g.globalAlpha = alpha == null ? 1 : alpha;
     g.translate(x, y);
@@ -237,6 +256,7 @@
       g.fillStyle = '#ffb347';
       g.beginPath(); g.moveTo(-8, -8); g.lineTo(0, 10 + Math.random() * 8); g.lineTo(8, -8); g.fill();
     }
+    if (hat) { g.save(); g.translate(-side * 7, 0); BB.Draw.hatRear(g, hat, -52); g.restore(); }
     g.restore();
   }
 
