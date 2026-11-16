@@ -154,12 +154,14 @@
     if (k === 'l') keyDir.l = on; else if (k === 'r') keyDir.r = on;
     else if (k === 'b') A.keys.boong = on; else if (k === 'k') A.keys.kkiik = on;
   }
+  const typing = (e) => { const t = e.target; return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable); };
   window.addEventListener('keydown', (e) => {
+    if (typing(e)) return;                       // 이름·방 코드 칸에 글자 입력 중
     if (e.key === 'h' || e.key === 'H') { if (!e.repeat) honk(); return; }
     const k = KEYS[e.key]; if (!k) return;
     setKey(k, true); e.preventDefault();
   });
-  window.addEventListener('keyup', (e) => { const k = KEYS[e.key]; if (k) setKey(k, false); });
+  window.addEventListener('keyup', (e) => { if (typing(e)) return; const k = KEYS[e.key]; if (k) setKey(k, false); });
 
   // 기울기 센서가 없는 폰(마이크 모드): 화면 왼쪽/오른쪽 누르고 있기
   let touchDir = 0;
@@ -239,9 +241,8 @@
     } catch (e) {}
 
     if (!forceButtons && !micOk) {
-      // 마이크가 막힌 곳(예: 아티팩트 화면)에서 응답 없이 멈추지 않게 4초 제한
-      const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 4000));
-      try { await Promise.race([A.init({ aec: Net.on }), timeout]); micOk = true; }
+      // 권한 묻는 창에 답할 때까지 기다림 (막힌 곳에선 바로 실패로 돌아옴)
+      try { await A.init({ aec: Net.on }); micOk = true; }
       catch (e) { micOk = false; }
     }
     if (orientReq) await orientReq;
@@ -302,8 +303,11 @@
   }
   Net.onChange = () => { renderRoom(); if (state === 'arrived') renderBoard(); };
   Net.onHorn = (id) => { peerHorn.set('n:' + id, 0.9); Sfx.horn(); };
+  let pendingStart = null;   // 보정 중에 받은 같이 출발
   Net.onStart = ({ stage, wait }) => {
-    if (!started) { ui.roomMsg.textContent = '친구가 출발해요! 「시작」을 눌러 줘'; stageIdx = stage; buildTitle(); return; }
+    stage = Math.min(stage, BB.STAGES.length - 1);
+    if (!started) { ui.roomMsg.textContent = '친구가 출발해요! 「시작」을 눌러 줘'; stageIdx = stage; loadStage(stage); buildTitle(); return; }
+    if (state === 'calib') { pendingStart = { stage, at: performance.now() + wait }; return; }
     beginCount(stage, wait);
   };
   function beginCount(stage, wait) {
@@ -317,9 +321,13 @@
     renderRoom();
   }
   const nickVal = () => { const v = ui.nick.value.trim().slice(0, 8); store.set('nick', v); return v || '친구'; };
+  let joining = false;
   async function joinRoom(code) {
+    if (joining) return;
+    joining = true; ui.roomMake.disabled = ui.roomJoin.disabled = true;
     ui.roomMsg.textContent = '연결하는 중…';
     const r = await Net.join(code, nickVal(), color);
+    joining = false; ui.roomMake.disabled = ui.roomJoin.disabled = false;
     ui.roomMsg.textContent = r.ok ? '친구에게 링크를 보내 줘. 다 모이면 게임 안에서 「같이 출발」!' : r.why;
     renderRoom();
     if (r.ok) setupVoice();
@@ -345,6 +353,7 @@
 
   function goTitle() {
     state = 'title';
+    stopPlayback(); Net.endRace(); pendingStart = null;
     A.stopRecording(true);
     show(ui.hud, false); show(ui.pad, false); show(ui.arrive, false); show(ui.calib, false);
     setBubble('', '');
@@ -365,7 +374,7 @@
     A.keys.boong = A.keys.kkiik = false;
   }
   ui.recal.addEventListener('click', () => {
-    if (!micOk) return;
+    if (!micOk || state === 'count') return;
     startCalibration(state === 'arrived' ? 'arrived' : 'play');
   });
 
@@ -391,7 +400,12 @@
       if (c.t > t3 + CALIB.ok + (c.ok ? 0 : 1.5)) {
         show(ui.calib, false);
         ui.calibSub.textContent = '';
-        if (stateBeforeCalib === 'arrived') { show(ui.hud, true); show(ui.arrive, true); state = 'arrived'; }
+        if (pendingStart) {
+          // 보정하는 동안 친구가 출발 눌렀으면 남은 시간만큼(최소 1.5초) 세고 같이 출발
+          const ps = pendingStart; pendingStart = null;
+          beginCount(ps.stage, Math.max(1500, ps.at - performance.now()));
+        }
+        else if (stateBeforeCalib === 'arrived') { show(ui.hud, true); show(ui.arrive, true); state = 'arrived'; }
         else if (running || runT > 0) { show(ui.hud, true); state = 'play'; }
         else startPlay();
         car.coastV0 = -1;
@@ -452,14 +466,14 @@
     }
   }
   ui.next.addEventListener('click', () => {
-    stopPlayback();
+    stopPlayback(); Net.endRace();
     show(ui.arrive, false);
     stageIdx = (stageIdx + 1) % BB.STAGES.length;
     loadStage(stageIdx);
     state = 'play';
   });
   ui.retry.addEventListener('click', () => {
-    stopPlayback();
+    stopPlayback(); Net.endRace();
     show(ui.arrive, false);
     loadStage(stageIdx);
     state = 'play';
@@ -1211,7 +1225,9 @@
     requestAnimationFrame(frame);
   }
 
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { A.resume(); last = performance.now(); } });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { A.resume(); Sfx.unlock(); last = performance.now(); } });
+  // iOS는 전화·시리 뒤 오디오가 'interrupted'로 멈춤 → 화면을 누르면 다시 살림 (친구 목소리 재생도 다시 시도)
+  document.addEventListener('pointerdown', () => { A.resume(); Sfx.unlock(); Net.kickAudio(); }, { capture: true });
 
   loadStage(0);
   buildTitle();

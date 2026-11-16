@@ -65,17 +65,22 @@
     out.ready = true;
   }
 
-  function resume() { if (ctx && ctx.state === 'suspended') ctx.resume(); }
+  function resume() { if (ctx && ctx.state !== 'running' && ctx.state !== 'closed') ctx.resume().catch(() => {}); }
 
   // 반향 제거 설정을 바꿔 마이크 다시 열기 (보정값·소음 스펙트럼은 유지)
+  let reopening = null;
   async function reopen(aec) {
+    if (reopening) await reopening;              // 이미 다시 여는 중이면 끝날 때까지
     if (!stream || aecOn === !!aec) return stream;
-    const ns = noiseSpec;
-    stopRecording(true);
-    try { src && src.disconnect(); } catch (e) {}
-    stream.getTracks().forEach((t) => t.stop());
-    await init({ aec });
-    noiseSpec.set(ns);
+    reopening = (async () => {
+      const ns = noiseSpec;
+      stopRecording(true);
+      try { src && src.disconnect(); } catch (e) {}
+      stream.getTracks().forEach((t) => t.stop());
+      await init({ aec });
+      noiseSpec.set(ns);
+    })();
+    try { await reopening; } finally { reopening = null; }
     return stream;
   }
 

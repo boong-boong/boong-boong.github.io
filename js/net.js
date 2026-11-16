@@ -41,7 +41,13 @@
   }
   function cleanCode(c) { return String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4); }
 
+  let joining = null;
   async function join(code, name, color) {
+    if (joining) await joining.catch(() => {});
+    joining = joinInner(code, name, color);
+    try { return await joining; } finally { joining = null; }
+  }
+  async function joinInner(code, name, color) {
     code = cleanCode(code);
     if (code.length !== 4) return { ok: false, why: '방 코드는 4글자예요' };
     if (!window.supabase || !BB.NET_CONFIG) return { ok: false, why: '연결 준비가 안 됐어요 (인터넷 확인)' };
@@ -60,14 +66,14 @@
     ch.on('broadcast', { event: 'start' }, ({ payload: p }) => {
       const st = num(p && p.stage), wait = num(p && p.wait);
       if (st == null || wait == null) return;
-      N.race = str(p.race, 12); N.results = [];
+      N.race = str(p.race, 12); N.results = []; N.raceStage = Math.floor(st);
       if (N.onStart) N.onStart({ stage: Math.max(0, Math.min(99, Math.floor(st))), wait: Math.max(0, Math.min(5000, wait)) });
       changed();
     });
     ch.on('broadcast', { event: 'finish' }, ({ payload: p }) => {
       const t = num(p && p.time);
       if (t == null || typeof p.id !== 'string') return;
-      if (p.race !== N.race) return;
+      if (!N.race || p.race !== N.race || num(p.stage) !== N.raceStage) return;
       N.results = N.results.filter((r) => r.id !== p.id);
       N.results.push({ id: p.id, name: str(p.name, 12) || '친구', time: t, stars: num(p.stars) || 0 });
       changed();
@@ -122,18 +128,21 @@
   // 같이 출발: 3.5초 뒤 출발 (보낸 사람도 같은 시간)
   function startRace(stage) {
     const race = Math.random().toString(36).slice(2, 8);
-    N.race = race; N.results = [];
+    N.race = race; N.results = []; N.raceStage = stage;
     send('start', { stage, wait: 3500, race });
     changed();
     return { stage, wait: 3500 };
   }
   function finish(stage, time, stars) {
-    if (!N.on || !N.race) return;
+    if (!N.on || !N.race || stage !== N.raceStage) return;
     N.results = N.results.filter((r) => r.id !== myId);
     N.results.push({ id: myId, name: me.name, time, stars, me: true });
     send('finish', { id: myId, name: me.name, time: Math.round(time * 100) / 100, stars, race: N.race, stage });
     changed();
   }
+
+  // 혼자 다시 하기·다음 스테이지·처음 화면: 같이 하던 경주는 끝 (다음 기록이 그 순위에 섞이지 않게)
+  function endRace() { if (N.race) { N.race = null; N.results = []; changed(); } }
 
   function peerList() {
     const now = performance.now(), out = [];
@@ -149,7 +158,16 @@
   // ---------- 목소리 (WebRTC) ----------
   // stream: 내 마이크 (없으면 듣기만)
   async function enableVoice(stream) {
+    const prev = localStream;
     localStream = stream || null;
+    if (prev !== localStream) {
+      const track = localStream ? localStream.getAudioTracks()[0] : null;
+      for (const [id, r] of [...rtc]) {
+        const sender = r.pc.getSenders().find((sd) => sd.track);
+        if (sender && sender.track && track) sender.replaceTrack(track).catch(() => {});
+        else closePeer(id);   // 듣기만 하던 연결은 다시 맺음
+      }
+    }
     voiceReady = true;
     me.ready = true;
     if (ch && N.on) { try { await ch.track(me); } catch (e) {} }
@@ -174,7 +192,12 @@
     pc.ontrack = (e) => { audio.srcObject = e.streams[0] || new MediaStream([e.track]); audio.play().catch(() => {}); changed(); };
     pc.onicecandidate = (e) => { if (e.candidate) send('sig', { to: id, from: myId, type: 'ice', c: e.candidate.toJSON() }); };
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed') { closePeer(id); setTimeout(syncVoice, 1500); }
+      const st = pc.connectionState;
+      if (st === 'failed') { closePeer(id); setTimeout(syncVoice, 1500); }
+      else if (st === 'disconnected') {
+        // 잠깐 끊김일 수 있으니 4초 기다렸다가 그대로면 다시 연결
+        setTimeout(() => { const cur = rtc.get(id); if (cur && cur.pc === pc && pc.connectionState !== 'connected') { closePeer(id); syncVoice(); } }, 4000);
+      }
       changed();
     };
     if (initiator) {
@@ -212,6 +235,10 @@
     try { r.audio.srcObject = null; r.audio.remove(); } catch (e) {}
     rtc.delete(id);
   }
+  function kickAudio() {
+    if (!N.voice) return;
+    rtc.forEach((r) => { if (r.audio.srcObject && r.audio.paused) r.audio.play().catch(() => {}); });
+  }
   function setVoice(on) {
     N.voice = on;
     rtc.forEach((r) => { r.audio.muted = !on; if (on) r.audio.play().catch(() => {}); });
@@ -223,6 +250,6 @@
     return n;
   }
 
-  Object.assign(N, { makeCode, cleanCode, join, leave, sendState, horn, startRace, finish, enableVoice, setVoice, voiceCount, stage: 0 });
+  Object.assign(N, { makeCode, cleanCode, join, leave, sendState, horn, startRace, finish, endRace, enableVoice, setVoice, kickAudio, voiceCount, stage: 0, raceStage: null });
   BB.Net = N;
 })();
