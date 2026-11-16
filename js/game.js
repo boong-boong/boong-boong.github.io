@@ -264,7 +264,28 @@
     pg.restore();
   }
   // 따로 열리는 창: 꾸미기 / 친구랑 / 놀이 방법
-  const openSheet = (id) => { ['decoSheet', 'roomSheet', 'help'].forEach((x) => show($(x), x === id)); if (id === 'decoSheet') buildTitle(); };
+  const openSheet = (id) => { ['decoSheet', 'roomSheet', 'help', 'installSheet'].forEach((x) => show($(x), x === id)); if (id === 'decoSheet') buildTitle(); };
+
+  // ---------- 앱으로 설치 ----------
+  // 이미 앱으로 실행 중이면 버튼 숨김. 안드로이드 Chrome 등은 설치 창을 바로, 아이폰은 안내
+  const standalone = () => matchMedia('(display-mode: fullscreen)').matches || matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  let installEvt = null;
+  function renderInstall() { show($('installBtn'), !BB.ARTIFACT && !standalone() && (!!installEvt || isIos || matchMedia('(pointer: coarse)').matches)); }
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; renderInstall(); });
+  window.addEventListener('appinstalled', () => { installEvt = null; renderInstall(); ui.titleMsg.textContent = '설치했어요! 홈 화면의 붕붕 아이콘으로 열어 봐'; });
+  $('installBtn').addEventListener('click', async () => {
+    if (installEvt) {
+      const e = installEvt; installEvt = null;
+      e.prompt();
+      try { await e.userChoice; } catch (x) {}
+      renderInstall();
+      return;
+    }
+    show($('installIos'), isIos); show($('installOther'), !isIos);
+    openSheet('installSheet');
+  });
+  renderInstall();
   $('decoBtn').addEventListener('click', () => openSheet('decoSheet'));
   $('roomBtn').addEventListener('click', () => openSheet('roomSheet'));
   $('helpBtn').addEventListener('click', () => openSheet('help'));

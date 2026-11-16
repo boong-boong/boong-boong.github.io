@@ -1,15 +1,20 @@
 {
-  "name": "붕붕",
+  "id": "./",
+  "name": "붕붕 — 입으로 운전하는 자동차",
   "short_name": "붕붕",
-  "description": "입으로 운전하는 둥근 자동차 게임",
+  "description": "붕~ 하면 가고, 끼익! 하면 미끄러지는 목소리 자동차 게임",
+  "lang": "ko",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
   "orientation": "portrait",
   "background_color": "#bfe6ff",
   "theme_color": "#bfe6ff",
+  "categories": ["games", "kids"],
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

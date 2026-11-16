@@ -240,3 +240,8 @@ button.round.big2 { width: 48px; height: 48px; font-size: 18px; }
 .helpGroup b { font-weight: normal; }
 
 .sheetCard .roomBox input { background: #f3f0fa; border-color: #e3ddf2; }
+
+.menuBtn.install { background: #ff6b6b; color: #fff; box-shadow: 0 3px 0 #c94848; }
+.installSteps { width: 100%; text-align: left; }
+.installSteps p { margin: 4px 0; font-size: 16px; line-height: 1.4; }
+.installSteps b { font-weight: normal; color: #e8673c; }

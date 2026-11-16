@@ -1,5 +1,5 @@
 // 붕붕 — 오프라인에서도 열리게 (인터넷 되면 항상 새 버전, 안 되면 저장해 둔 것)
-const CACHE = 'boongboong-v1';
+const CACHE = 'boongboong-v2';
 self.addEventListener('install', (e) => { self.skipWaiting(); });
 self.addEventListener('activate', (e) => { e.waitUntil(self.clients.claim()); });
 self.addEventListener('fetch', (e) => {
