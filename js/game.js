@@ -781,7 +781,7 @@
 
     if (d > half + BB.GRASS_W + 4 && state === 'play') { car.fallT = 0; Sfx.fall(); return; }
 
-    if (state === 'play') stepQuiet(dt, type);
+    if (state === 'play') { stepQuiet(dt, type); stepStuck(dt, type); }
 
     // 커브 통과 기록 (끼익 안내를 언제까지 보여줄지)
     track.turns.forEach((tn, i) => {
@@ -901,6 +901,23 @@
       }
       car.blink = 1.2;
       Sfx.respawn();
+    }
+  }
+
+  // 갇힘 구조: 붕을 하는데도 3초 동안 앞으로 못 가면(나무·벽 앞에 서서 돌 수 없을 때) 조금 뒤 길 가운데서 다시
+  let stuckT = 0, stuckS = 0;
+  function stepStuck(dt, type) {
+    const nearDoor = track.doors.some((d) => d.open <= 0 && car.pi === 0 && car.s > d.s - DOOR_RANGE - 40 && car.s < d.s + 10);
+    if (type !== 'boong' || nearDoor || car.air) { stuckT = 0; stuckS = car.s; return; }
+    if (car.s > stuckS + 25) { stuckT = 0; stuckS = car.s; return; }
+    stuckT += dt;
+    if (stuckT > 3) {
+      stuckT = 0;
+      if (car.pi) placeCar(0, 1, Math.max(0, car.ls - 80));
+      else placeCar(safeS(car.s - 80));
+      stuckS = car.s;
+      car.blink = 1.2; Sfx.respawn();
+      flash('끼었네! 다시 해 보자', 1.5);
     }
   }
 
