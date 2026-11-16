@@ -10,4 +10,7 @@
 폰에서 https://boong-boong.github.io/ 열기 (마이크는 HTTPS에서만 동작).
 컴퓨터에서는 `python3 -m http.server 8000` → http://localhost:8000
 
+## 친구랑 같이
+시작 화면 「친구랑 같이」에서 방을 만들고 링크를 보내면, 같은 방에서 「같이 출발」로 경주하고 서로 목소리도 들려요(이어폰 권장).
+
 빌드 도구 없음. 구조와 할 일은 `SESSION_LOG.md` 참고.

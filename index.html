@@ -29,10 +29,16 @@
         <div id="friends" class="pill small hidden"></div>
       </div>
       <div class="hudRight">
-        <button id="hornBtn" class="round" type="button" aria-label="경적">빵</button>
-        <button id="viewBtn" class="round" type="button" aria-label="시점 바꾸기">3D</button>
-        <button id="recalBtn" class="round" type="button" aria-label="다시 보정">보정</button>
-        <button id="homeBtn" class="round" type="button" aria-label="처음 화면">≡</button>
+        <div class="hudRow">
+          <button id="hornBtn" class="round" type="button" aria-label="경적">빵</button>
+          <button id="viewBtn" class="round" type="button" aria-label="시점 바꾸기">3D</button>
+          <button id="recalBtn" class="round" type="button" aria-label="다시 보정">보정</button>
+          <button id="homeBtn" class="round" type="button" aria-label="처음 화면">≡</button>
+        </div>
+        <div id="roomHud" class="hudRow hidden">
+          <button id="raceBtn" class="chip go" type="button">같이 출발</button>
+          <button id="voiceBtn" class="chip" type="button">친구 소리 켬</button>
+        </div>
       </div>
     </div>
 
@@ -59,8 +65,28 @@
       <div id="colors" class="row"></div>
       <div class="pickLabel">스테이지</div>
       <div id="stages" class="row"></div>
+      <div id="roomBox" class="roomBox">
+        <div class="pickLabel">친구랑 같이</div>
+        <div id="roomOut" class="roomRows">
+          <div class="row">
+            <input id="nick" maxlength="8" placeholder="내 이름" autocomplete="off" aria-label="내 이름">
+            <button id="roomMake" class="mid ghost small" type="button">방 만들기</button>
+          </div>
+          <div class="row">
+            <input id="roomCode" maxlength="4" placeholder="방 코드" autocomplete="off" autocapitalize="characters" aria-label="방 코드">
+            <button id="roomJoin" class="mid ghost small" type="button">들어가기</button>
+          </div>
+        </div>
+        <div id="roomIn" class="roomRows hidden">
+          <div id="roomInfo" class="roomInfo"></div>
+          <div class="row">
+            <button id="roomCopy" class="mid ghost small" type="button">링크 복사</button>
+            <button id="roomLeave" class="link" type="button">방 나가기</button>
+          </div>
+        </div>
+        <div id="roomMsg" class="msg"></div>
+      </div>
       <button id="startBtn" class="big" type="button">시작</button>
-      <button id="btnModeBtn" class="link" type="button">마이크 없이 버튼으로 하기</button>
       <div id="titleMsg" class="msg"></div>
     </div>
 
@@ -87,12 +113,15 @@
     <div id="rotate">폰을 세로로 들어 줘</div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="js/net-config.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/sfx.js"></script>
   <script src="js/track.js"></script>
   <script src="js/draw.js"></script>
   <script src="js/render3d.js"></script>
   <script src="js/online.js"></script>
+  <script src="js/net.js"></script>
   <script src="js/game.js"></script>
   <!--/BODY-->
 </body>

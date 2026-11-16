@@ -41,14 +41,17 @@
   // 키보드 대체 입력 (마이크 없을 때/컴퓨터 테스트용)
   const keys = { boong: false, kkiik: false };
 
-  async function init() {
+  // aec: 친구 목소리를 들을 때는 반향 제거를 켜서, 스피커로 나온 친구 소리가 내 차를 움직이지 않게
+  let aecOn = false, src = null;
+  async function init(opts) {
     const AC = window.AudioContext || window.webkitAudioContext;
-    ctx = new AC();
+    if (!ctx) ctx = new AC();
     if (ctx.state === 'suspended') await ctx.resume();
+    aecOn = !!(opts && opts.aec);
     stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      audio: { echoCancellation: aecOn, noiseSuppression: false, autoGainControl: false },
     });
-    const src = ctx.createMediaStreamSource(stream);
+    src = ctx.createMediaStreamSource(stream);
     analyser = ctx.createAnalyser();
     analyser.fftSize = 2048;
     analyser.smoothingTimeConstant = 0.25;
@@ -63,6 +66,18 @@
   }
 
   function resume() { if (ctx && ctx.state === 'suspended') ctx.resume(); }
+
+  // 반향 제거 설정을 바꿔 마이크 다시 열기 (보정값·소음 스펙트럼은 유지)
+  async function reopen(aec) {
+    if (!stream || aecOn === !!aec) return stream;
+    const ns = noiseSpec;
+    stopRecording(true);
+    try { src && src.disconnect(); } catch (e) {}
+    stream.getTracks().forEach((t) => t.stop());
+    await init({ aec });
+    noiseSpec.set(ns);
+    return stream;
+  }
 
   // 날 것의 측정값 하나
   function measure() {
@@ -236,5 +251,5 @@
     return Math.max(0, Math.min(1, (d - lo) / Math.max(10, hi - lo)));
   }
 
-  BB.Audio = { init, resume, ctx: () => ctx, hasMic: () => !!stream, startRecording, stopRecording, update, measure, captureNoiseFrame, setNoise, applyCalibration, cal, out, keys, pitchNorm, dbNorm };
+  BB.Audio = { init, resume, reopen, stream: () => stream, aec: () => aecOn, ctx: () => ctx, hasMic: () => !!stream, startRecording, stopRecording, update, measure, captureNoiseFrame, setNoise, applyCalibration, cal, out, keys, pitchNorm, dbNorm };
 })();

@@ -43,8 +43,16 @@ canvas#game { position: absolute; inset: 0; width: 100%; height: 100%; display: 
 #starCount { color: #e09a00; }
 .hudRight {
   position: absolute; right: 10px; top: calc(10px + env(safe-area-inset-top));
-  display: flex; gap: 6px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
 }
+.hudRow { display: flex; gap: 6px; }
+button.chip {
+  pointer-events: auto; font: inherit; font-size: 14px; color: #3a3350;
+  border: 0; border-radius: 999px; padding: 7px 12px;
+  background: rgba(255,255,255,.88); box-shadow: 0 2px 0 rgba(0,0,0,.12);
+}
+button.chip.go { background: #ff6b6b; color: #fff; box-shadow: 0 2px 0 #c94848; }
+button.chip.off { opacity: .6; }
 button.round {
   pointer-events: auto;
   width: 42px; height: 42px; border-radius: 50%; border: 0; padding: 0;
@@ -92,7 +100,7 @@ button.round:active { transform: translateY(1px); }
   overflow-y: auto;
 }
 #title { background: rgba(191,230,255,.62); }
-.logo { font-size: 80px; line-height: 1; color: #ff6b6b; text-shadow: 0 5px 0 #c94848; letter-spacing: 4px; }
+.logo { font-size: 64px; line-height: 1; color: #ff6b6b; text-shadow: 0 5px 0 #c94848; letter-spacing: 4px; }
 .sub { font-size: 20px; opacity: .8; margin-bottom: 6px; }
 .pickLabel { font-size: 14px; opacity: .7; margin-top: 4px; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; align-items: center; }
@@ -156,3 +164,15 @@ button:focus-visible { outline: 3px solid #3a3350; outline-offset: 3px; }
 @media (orientation: landscape) and (pointer: coarse) and (max-height: 600px) {
   #rotate { display: flex; }
 }
+
+.roomBox { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.roomRows { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.roomBox input {
+  font: inherit; font-size: 16px; color: #3a3350; width: 110px;
+  border: 2px solid #fff; border-radius: 999px; padding: 7px 12px; background: rgba(255,255,255,.9);
+  text-align: center;
+}
+.roomBox input:focus { outline: 3px solid #3a3350; outline-offset: 1px; }
+button.mid.small { font-size: 16px; padding: 7px 16px; box-shadow: 0 3px 0 rgba(0,0,0,.15); }
+.roomInfo { font-size: 18px; background: rgba(255,255,255,.9); border-radius: 14px; padding: 6px 14px; line-height: 1.4; max-width: 300px; }
+.roomInfo b { color: #e8673c; letter-spacing: 2px; }

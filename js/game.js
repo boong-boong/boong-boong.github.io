@@ -1,7 +1,7 @@
 // 붕붕 — 게임 본체 (상태, 조작, 물리, 그리기, 화면)
 (function () {
   const BB = window.BB;
-  const A = BB.Audio, T = BB.Track, D = BB.Draw, Sfx = BB.Sfx, On = BB.Online;
+  const A = BB.Audio, T = BB.Track, D = BB.Draw, Sfx = BB.Sfx, On = BB.Online, Net = BB.Net;
   const { fwd, right } = T;
 
   // ---------- 조정값 ----------
@@ -35,8 +35,11 @@
     horn: $('hornBtn'), view: $('viewBtn'), recal: $('recalBtn'), home: $('homeBtn'),
     pad: $('pad'), padL: $('padLeft'), padR: $('padRight'), padB: $('padBoong'), padK: $('padKkiik'),
     bubble: $('bubble'),
-    title: $('title'), colors: $('colors'), stages: $('stages'), start: $('startBtn'), btnMode: $('btnModeBtn'), titleMsg: $('titleMsg'),
+    title: $('title'), colors: $('colors'), stages: $('stages'), start: $('startBtn'), titleMsg: $('titleMsg'),
     calib: $('calib'), calibText: $('calibText'), calibFill: $('calibFill'), calibSub: $('calibSub'),
+    roomBox: $('roomBox'), roomOut: $('roomOut'), roomIn: $('roomIn'), roomInfo: $('roomInfo'), roomMsg: $('roomMsg'),
+    nick: $('nick'), roomCode: $('roomCode'), roomMake: $('roomMake'), roomJoin: $('roomJoin'), roomCopy: $('roomCopy'), roomLeave: $('roomLeave'),
+    roomHud: $('roomHud'), raceBtn: $('raceBtn'), voiceBtn: $('voiceBtn'),
     arrive: $('arrive'), stats: $('arriveStats'), board: $('board'), playback: $('playbackBtn'), retry: $('retryBtn'), next: $('nextBtn'),
   };
   const show = (el, on) => el.classList.toggle('hidden', !on);
@@ -130,9 +133,10 @@
   let jumpOK = 0, quietOK = 0, iceHintT = 0, iceHinted = false, forkHint = 0;
 
   // ---------- 조작: 기울이기 / 키보드 / 터치 / 버튼 ----------
-  let tilt = 0;
+  let tilt = 0, tiltSeen = false;
   function onOrient(e) {
     if (e.gamma == null) return;
+    tiltSeen = true;
     let gm = e.gamma;
     const ang = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
     if (ang === 180) gm = -gm;
@@ -145,6 +149,8 @@
   const keyDir = { l: false, r: false };
   const KEYS = { ArrowLeft: 'l', a: 'l', A: 'l', ArrowRight: 'r', d: 'r', D: 'r', ArrowUp: 'b', w: 'b', W: 'b', ArrowDown: 'k', s: 'k', S: 'k', ' ': 'k' };
   function setKey(k, on) {
+    // 목소리 모드에선 키보드로 붕/끼익 못 함 (방향키 핸들만)
+    if (mode === 'mic' && micOk && (k === 'b' || k === 'k')) return;
     if (k === 'l') keyDir.l = on; else if (k === 'r') keyDir.r = on;
     else if (k === 'b') A.keys.boong = on; else if (k === 'k') A.keys.kkiik = on;
   }
@@ -163,7 +169,9 @@
     pointers.forEach((x) => { d += x < cw / 2 ? -1 : 1; });
     touchDir = Math.max(-1, Math.min(1, d));
   }
-  canvas.addEventListener('pointerdown', (e) => { if (mode === 'buttons') return; const r = canvas.getBoundingClientRect(); pointers.set(e.pointerId, e.clientX - r.left); recomputeTouch(); });
+  canvas.addEventListener('pointerdown', (e) => {
+    // 목소리 모드: 기울기 센서가 있으면 터치 핸들 없음 (센서 없는 폰에서만 비상용)
+    if (mode === 'buttons' || tiltSeen || !matchMedia('(pointer: coarse)').matches) return; const r = canvas.getBoundingClientRect(); pointers.set(e.pointerId, e.clientX - r.left); recomputeTouch(); });
   canvas.addEventListener('pointermove', (e) => { if (!pointers.has(e.pointerId)) return; const r = canvas.getBoundingClientRect(); pointers.set(e.pointerId, e.clientX - r.left); recomputeTouch(); });
   const up = (e) => { pointers.delete(e.pointerId); recomputeTouch(); };
   canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
@@ -210,7 +218,7 @@
   }
 
   async function begin(forceButtons) {
-    ui.start.disabled = true; ui.btnMode.disabled = true;
+    ui.start.disabled = true;
     ui.titleMsg.textContent = '';
     Sfx.unlock();
 
@@ -229,14 +237,16 @@
     if (!forceButtons && !micOk) {
       // 마이크가 막힌 곳(예: 아티팩트 화면)에서 응답 없이 멈추지 않게 4초 제한
       const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 4000));
-      try { await Promise.race([A.init(), timeout]); micOk = true; }
+      try { await Promise.race([A.init({ aec: Net.on }), timeout]); micOk = true; }
       catch (e) { micOk = false; }
     }
     if (orientReq) await orientReq;
     try { if (navigator.wakeLock) navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
-    ui.start.disabled = false; ui.btnMode.disabled = false;
+    ui.start.disabled = false;
 
     mode = !forceButtons && micOk ? 'mic' : 'buttons';
+    started = true;
+    setupVoice();
     show(ui.title, false);
     if (mode === 'mic' && !calibrated) startCalibration('play');
     else {
@@ -245,7 +255,7 @@
     }
   }
   ui.start.addEventListener('click', () => begin(false));
-  ui.btnMode.addEventListener('click', () => begin(true));
+  // 버튼 모드는 마이크를 못 쓸 때만 자동으로 (목소리 되면 터치 조작 없음)
 
   function startPlay() {
     show(ui.title, false); show(ui.calib, false); show(ui.arrive, false);
@@ -255,6 +265,78 @@
     loadStage(stageIdx);
     state = 'play';
     if (mode === 'mic') A.startRecording();
+    renderRoom();
+  }
+
+  // ---------- 친구랑 같이 (방) ----------
+  let started = false, countT = 0;
+  async function setupVoice() {
+    if (!Net.on || !started) return;
+    if (mode === 'mic' && micOk) {
+      const wasRec = state === 'play';
+      await A.reopen(true);              // 친구 목소리가 내 마이크로 다시 들어가지 않게
+      if (wasRec) A.startRecording();
+      Net.enableVoice(A.stream());
+    } else Net.enableVoice(null);
+  }
+  function renderRoom() {
+    const inRoom = Net.on;
+    show(ui.roomOut, !inRoom); show(ui.roomIn, inRoom);
+    show(ui.roomHud, inRoom && (state === 'play' || state === 'arrived' || state === 'count'));
+    if (inRoom) {
+      ui.roomInfo.innerHTML = '';
+      const a = document.createElement('div'); a.append('방 '); const b = document.createElement('b'); b.textContent = Net.code; a.append(b);
+      const names = Net.members.map((m) => (m.id === Net.myId ? m.name + '(나)' : m.name));
+      const c = document.createElement('div'); c.textContent = names.join(', ');
+      ui.roomInfo.append(a, c);
+      const n = Net.members.length - 1;
+      show(ui.friends, n > 0 || (On.on && On.peers.length > 0));
+      if (n > 0) ui.friends.textContent = '친구 ' + n + '명' + (Net.voiceCount() ? ' · 목소리 연결 ' + Net.voiceCount() : '');
+    }
+    ui.voiceBtn.textContent = Net.voice ? '친구 소리 켬' : '친구 소리 끔';
+    ui.voiceBtn.classList.toggle('off', !Net.voice);
+  }
+  Net.onChange = () => { renderRoom(); if (state === 'arrived') renderBoard(); };
+  Net.onHorn = (id) => { peerHorn.set('n:' + id, 0.9); Sfx.horn(); };
+  Net.onStart = ({ stage, wait }) => {
+    if (!started) { ui.roomMsg.textContent = '친구가 출발해요! 「시작」을 눌러 줘'; stageIdx = stage; buildTitle(); return; }
+    beginCount(stage, wait);
+  };
+  function beginCount(stage, wait) {
+    stopPlayback();
+    show(ui.arrive, false); show(ui.calib, false); show(ui.title, false);
+    show(ui.hud, true); show(ui.pad, mode === 'buttons');
+    stageIdx = stage;
+    loadStage(stage);
+    state = 'count';
+    countT = wait / 1000;
+    renderRoom();
+  }
+  const nickVal = () => { const v = ui.nick.value.trim().slice(0, 8); store.set('nick', v); return v || '친구'; };
+  async function joinRoom(code) {
+    ui.roomMsg.textContent = '연결하는 중…';
+    const r = await Net.join(code, nickVal(), color);
+    ui.roomMsg.textContent = r.ok ? '친구에게 링크를 보내 줘. 다 모이면 게임 안에서 「같이 출발」!' : r.why;
+    renderRoom();
+    if (r.ok) setupVoice();
+  }
+  ui.nick.value = store.get('nick', '');
+  ui.roomMake.addEventListener('click', () => joinRoom(Net.makeCode()));
+  ui.roomJoin.addEventListener('click', () => joinRoom(ui.roomCode.value));
+  ui.roomCode.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinRoom(ui.roomCode.value); });
+  ui.roomLeave.addEventListener('click', async () => { await Net.leave(); ui.roomMsg.textContent = ''; renderRoom(); });
+  ui.roomCopy.addEventListener('click', () => {
+    const link = location.origin + location.pathname + '#room-' + Net.code;
+    const done = () => (ui.roomMsg.textContent = '링크를 복사했어요');
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, () => (ui.roomMsg.textContent = link));
+    else ui.roomMsg.textContent = link;
+  });
+  ui.raceBtn.addEventListener('click', () => { const r = Net.startRace(stageIdx); beginCount(r.stage, r.wait); });
+  ui.voiceBtn.addEventListener('click', () => Net.setVoice(!Net.voice));
+  if (BB.ARTIFACT) show(ui.roomBox, false);   // 아티팩트에선 아티팩트 자체 같이 달리기 사용
+  else {
+    const m = location.hash.match(/^#room-([A-Za-z0-9]{4})$/);
+    if (m) { ui.roomCode.value = m[1].toUpperCase(); ui.roomMsg.textContent = '친구 방 ' + m[1].toUpperCase() + ' — 이름 쓰고 「들어가기」'; }
   }
 
   function goTitle() {
@@ -264,6 +346,7 @@
     setBubble('', '');
     buildTitle();
     show(ui.title, true);
+    renderRoom();
   }
   ui.home.addEventListener('click', goTitle);
 
@@ -318,7 +401,7 @@
   // ---------- 경적 ----------
   function honk() {
     if (state !== 'play' && state !== 'arrived') return;
-    Sfx.horn(); myHorn = 0.7; On.horn();
+    Sfx.horn(); myHorn = 0.7; On.horn(); Net.horn();
   }
   ui.horn.addEventListener('click', honk);
   On.onHorn = (key) => { peerHorn.set(key, 0.9); Sfx.horn(); };
@@ -358,6 +441,7 @@
     setTimeout(() => { if (state === 'arrived') show(ui.arrive, true); }, 350);
 
     On.submit(stageIdx, runT, stars).then(renderBoard);
+    if (Net.on && Net.race) Net.finish(stageIdx, runT, stars);
     if (mode === 'mic') {
       recUrl = await A.stopRecording(false);
       if (recUrl && state === 'arrived') show(ui.playback, true);
@@ -390,6 +474,21 @@
   }
 
   function renderBoard() {
+    // 방에서 같이 출발했으면 이번 경주 순위
+    if (Net.on && Net.race && Net.results.length) {
+      ui.board.innerHTML = '';
+      const h = document.createElement('h3'); h.textContent = '같이 달린 순위';
+      const ol = document.createElement('ol');
+      Net.results.slice().sort((a, b) => a.time - b.time).forEach((r) => {
+        const li = document.createElement('li'); if (r.id === Net.myId) li.className = 'me';
+        const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = r.id === Net.myId ? '나' : r.name;
+        const tm = document.createElement('span'); tm.textContent = fmt(r.time) + ' ★' + r.stars;
+        li.append(nm, tm); ol.appendChild(li);
+      });
+      ui.board.append(h, ol);
+      show(ui.board, true);
+      return;
+    }
     const rows = On.top(stageIdx, 5);
     if (!On.boardOn || !rows.length) { show(ui.board, false); return; }
     ui.board.innerHTML = '';
@@ -936,8 +1035,8 @@
     ui.timer.textContent = fmt(runT);
     ui.starCount.textContent = '★ ' + stars + '/' + starTotal;
     const n = On.peers.length;
-    show(ui.friends, On.on && n > 0);
-    if (n) ui.friends.textContent = '같이 달리는 친구 ' + n;
+    if (Net.on) renderRoom();
+    else { show(ui.friends, On.on && n > 0); if (n) ui.friends.textContent = '같이 달리는 친구 ' + n; }
     hudT = 0;
   }
 
@@ -951,6 +1050,7 @@
     show(ui.bubble, !!text);
   }
   function updateHints(dt) {
+    if (state === 'count') { setBubble(countT > 3 ? '준비' : String(Math.ceil(countT)), 'boong'); return; }
     if (flashT > 0) { flashT -= dt; setBubble(flashText, ''); return; }
     if (state !== 'play' || car.fallT >= 0) { setBubble('', ''); return; }
     const speed = Math.hypot(car.vx, car.vy);
@@ -1021,6 +1121,10 @@
     const tgt = state === 'play' ? steerInput() : 0;
     car.steer += (tgt - car.steer) * Math.min(1, dt * 10);
 
+    if (state === 'count') {
+      countT -= dt;
+      if (countT <= 0) { state = 'play'; flash('붕!', 0.7); if (mode === 'mic') A.startRecording(); renderRoom(); }
+    }
     if (state === 'play' || state === 'arrived') stepCar(dt);
     if (state === 'play') {
       if (!running && Math.hypot(car.vx, car.vy) > 5) running = true;
@@ -1038,6 +1142,8 @@
     if (mode === 'buttons' && state !== 'title') Sfx.engine(Math.min(1, speed / P.VMAX), state === 'play' || state === 'arrived');
     else if (mode === 'buttons') Sfx.engine(0, false);
     if (state === 'play' || state === 'arrived') On.sendState(car, color, state === 'arrived');
+    Net.stage = stageIdx;
+    if (state === 'play' || state === 'arrived' || state === 'count') Net.sendState(car, stageIdx, state === 'arrived');
 
     // 카메라: 진행 방향을 위로
     const moveA = speed > 60 ? Math.atan2(car.vx, -car.vy) : car.h;
@@ -1050,7 +1156,8 @@
     shake = Math.max(0, shake - dt);
 
     // 친구 차 (같은 스테이지)
-    const peers = On.peers.map((p) => ({ ...p, horn: peerHorn.get(p.key) || 0, label: On.nameOf(p.id) || '친구' }));
+    const peers = On.peers.map((p) => ({ ...p, horn: peerHorn.get(p.key) || 0, label: On.nameOf(p.id) || '친구' }))
+      .concat(Net.peers.map((p) => ({ ...p, horn: peerHorn.get(p.key) || 0, label: p.name })));
 
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     const sx = shake ? (Math.random() - 0.5) * 16 * shake : 0, sy = shake ? (Math.random() - 0.5) * 16 * shake : 0;
@@ -1096,6 +1203,7 @@
 
   loadStage(0);
   buildTitle();
+  renderRoom();
   On.init();
   requestAnimationFrame(frame);
 

@@ -12,9 +12,13 @@ css += '\nhtml, body { height: 100%; background: #8fcff5; }\n'
 
 def inline(m):
     src = m.group(1)
+    # 아티팩트에선 Supabase 친구 기능 대신 아티팩트 자체 같이 달리기를 씀
+    if src.startswith('http') or src in ('js/net-config.js',):
+        return ''
     code = (root / src).read_text(encoding='utf-8').replace('</script', '<\\/script')
     return f'<script>\n/* {src} */\n{code}\n</script>'
 body = re.sub(r'<script src="([^"]+)"></script>', inline, body)
+body = '<script>window.BB = window.BB || {}; window.BB.ARTIFACT = true;</script>\n' + body
 
 out = f'''<title>붕붕</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
