@@ -59,14 +59,10 @@
     <!-- 말풍선 안내 (붕 해 봐 / 끼익!) -->
     <div id="bubble" class="hidden"></div>
 
-    <!-- 시작 화면 -->
+    <!-- 시작 화면: 스테이지 고르고 시작. 꾸미기·친구랑·놀이 방법은 따로 창으로 -->
     <div id="title" class="screen">
       <div class="logo">붕붕</div>
       <div class="sub">입으로 운전해요</div>
-      <div class="pickLabel">차 꾸미기 <span id="starTotal" class="starTotal"></span></div>
-      <div id="colors" class="row"></div>
-      <div id="hats" class="row hats"></div>
-      <div class="pickLabel">스테이지</div>
       <div class="stagePick">
         <button id="stPrev" class="round big2" type="button" aria-label="이전 스테이지">◀</button>
         <div id="stages" class="stInfo">
@@ -76,51 +72,81 @@
         </div>
         <button id="stNext" class="round big2" type="button" aria-label="다음 스테이지">▶</button>
       </div>
-      <div id="roomBox" class="roomBox">
-        <div class="pickLabel">친구랑 같이</div>
-        <div id="roomOut" class="roomRows">
-          <div class="row">
-            <input id="nick" maxlength="8" placeholder="내 이름" autocomplete="off" aria-label="내 이름">
-            <button id="roomMake" class="mid ghost small" type="button">방 만들기</button>
-          </div>
-          <div class="row">
-            <input id="roomCode" maxlength="4" placeholder="방 코드" autocomplete="off" autocapitalize="characters" aria-label="방 코드">
-            <button id="roomJoin" class="mid ghost small" type="button">들어가기</button>
-          </div>
-        </div>
-        <div id="roomIn" class="roomRows hidden">
-          <div id="roomInfo" class="roomInfo"></div>
-          <div class="row">
-            <button id="roomCopy" class="mid ghost small" type="button">링크 복사</button>
-            <button id="roomLeave" class="link" type="button">방 나가기</button>
-          </div>
-        </div>
-        <div id="roomMsg" class="msg"></div>
-      </div>
       <button id="startBtn" class="big" type="button">시작</button>
-      <button id="helpBtn" class="round helpQ" type="button" aria-label="놀이 방법">?</button>
+      <div class="menuRow">
+        <button id="decoBtn" class="menuBtn" type="button">꾸미기</button>
+        <button id="roomBtn" class="menuBtn" type="button">친구랑</button>
+        <button id="helpBtn" class="menuBtn" type="button">놀이 방법</button>
+      </div>
+      <div id="roomLine" class="roomLine hidden"></div>
       <div id="titleMsg" class="msg"></div>
     </div>
 
+    <!-- 꾸미기 -->
+    <div id="decoSheet" class="screen sheet hidden">
+      <div class="sheetCard">
+        <h2>꾸미기</h2>
+        <canvas id="carPreview" width="120" height="120" aria-label="내 차"></canvas>
+        <div class="sheetLabel">색깔</div>
+        <div id="colors" class="row"></div>
+        <div class="sheetLabel">모자 <span id="starTotal" class="starTotal"></span></div>
+        <div id="hats" class="row hats"></div>
+        <div id="decoMsg" class="msg"></div>
+        <button class="big sheetClose" type="button">다 했어</button>
+      </div>
+    </div>
+
+    <!-- 친구랑 같이 -->
+    <div id="roomSheet" class="screen sheet hidden">
+      <div class="sheetCard">
+        <h2>친구랑 같이</h2>
+        <div id="roomBox" class="roomBox">
+          <div id="roomOut" class="roomRows">
+            <div class="row">
+              <input id="nick" maxlength="8" placeholder="내 이름" autocomplete="off" aria-label="내 이름">
+              <button id="roomMake" class="mid ghost small" type="button">방 만들기</button>
+            </div>
+            <div class="row">
+              <input id="roomCode" maxlength="4" placeholder="방 코드" autocomplete="off" autocapitalize="characters" aria-label="방 코드">
+              <button id="roomJoin" class="mid ghost small" type="button">들어가기</button>
+            </div>
+          </div>
+          <div id="roomIn" class="roomRows hidden">
+            <div id="roomInfo" class="roomInfo"></div>
+            <div class="row">
+              <button id="roomCopy" class="mid ghost small" type="button">링크 복사</button>
+              <button id="roomLeave" class="link" type="button">방 나가기</button>
+            </div>
+          </div>
+          <div id="roomMsg" class="msg"></div>
+          <div class="tip">이어폰을 끼면 친구 목소리가 내 차를 움직이지 않아요</div>
+        </div>
+        <button class="big sheetClose" type="button">닫기</button>
+      </div>
+    </div>
+
     <!-- 놀이 방법 -->
-    <div id="help" class="screen hidden">
-      <div class="helpCard">
+    <div id="help" class="screen sheet hidden">
+      <div class="sheetCard">
         <h2>놀이 방법</h2>
-        <ul class="helpList">
-          <li><b class="c-boong">붕~</b> 낮고 울리는 소리 → 앞으로. 크게, 길게 할수록 빨라요</li>
-          <li><b class="c-kkiik">끼익!</b> 높고 날카로운 소리 → 미끄러지며 급커브</li>
-          <li><b>기울이기</b> 폰을 좌우로 기울여 방향 (컴퓨터는 ← →)</li>
-          <li><b>소리 멈춤</b> 2초쯤 굴러가다 멈춰요</li>
-          <li><b class="c-star">★ 별</b> 모으면 차 색깔·모자가 열려요 · <b class="c-kkiik">번개</b> 잠깐 터보</li>
-          <li><b>잔디</b> 느려져요 · <b>벽·나무·문</b> 튕겨요 · <b>길 밖</b> 떨어지면 근처에서 다시</li>
-          <li><b class="c-boong">점프대</b> 위에서 크게 붕!! 클수록 멀리 날아요</li>
-          <li><b class="c-quiet">쉿 구간</b> 곰이 자요. 미리 속도 내고 조용히 굴러서</li>
-          <li><b class="c-ice">얼음</b> 미끄러워요 · <b class="c-mud">진흙</b> 크게 붕 해야 빠져나와요</li>
-          <li><b>갈림길</b> 지름길 쪽으로 꺾고 끼익! 짧지만 어려워요</li>
-          <li><b>밤길</b> 소리 내면 깜깜해져요. 조용히 굴러가며 길 보기 · <b class="c-kkiik">끼익 문</b> 앞에서 끼익 하면 열려요</li>
-          <li><b>친구랑</b> 방 만들고 링크 보내기 → 「같이 출발」 (이어폰 쓰기!)</li>
-        </ul>
-        <button id="helpClose" class="big" type="button">알겠어</button>
+        <div class="helpGroup">
+          <h3>조작</h3>
+          <p><b class="c-boong">붕~</b> 앞으로 (크게·길게 = 빨리)</p>
+          <p><b class="c-kkiik">끼익!</b> 미끄러지며 급커브</p>
+          <p><b>기울이기</b> 방향 · <b>조용히</b> 서서히 멈춤</p>
+        </div>
+        <div class="helpGroup">
+          <h3>길 위에서</h3>
+          <p><b class="c-star">★</b> 모으면 모자가 열려요 · <b class="c-kkiik">번개</b> 터보</p>
+          <p>잔디는 느림 · 벽·나무는 튕김 · 떨어지면 다시</p>
+        </div>
+        <div class="helpGroup">
+          <h3>특별한 길</h3>
+          <p><b class="c-boong">점프대</b> 크게 붕!! · <b class="c-quiet">쉿</b> 조용히 굴러가기</p>
+          <p><b class="c-ice">얼음</b> 미끄럼 · <b class="c-mud">진흙</b> 크게 붕 · <b>갈림길</b> 꺾고 끼익</p>
+          <p><b>밤</b> 소리 내면 깜깜 · <b class="c-kkiik">문</b> 앞에서 끼익</p>
+        </div>
+        <button class="big sheetClose" type="button">알겠어</button>
       </div>
     </div>
 

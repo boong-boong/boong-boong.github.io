@@ -19,9 +19,8 @@
   };
   const CAR_R = 15, WALL_HW = 7, TREE_R = 17, ITEM_R = 30;
   const CALIB = { quiet: 1.0, boong: 4.5, kkiik: 4.5, ok: 0.9 }; // 합 10초 + 확인
-  const COLORS = ['#ff6b6b', '#4dabf7', '#ffd43b', '#51cf66', '#b197fc', '#ff922b'];
-  // 별을 모으면 열리는 꾸미기 (스테이지별 최고 별 수의 합)
-  const EXTRA_COLORS = [{ c: '#f783ac', need: 40 }, { c: '#20c997', need: 80 }, { c: '#f1f3f5', need: 150 }, { c: '#495057', need: 250 }];
+  const COLORS = ['#ff6b6b', '#4dabf7', '#ffd43b', '#51cf66', '#b197fc'];
+  // 별을 모으면 열리는 모자 (스테이지별 최고 별 수의 합)
   const HATS = [{ id: '', name: '없음', need: 0 }, { id: 'ribbon', name: '리본', need: 20 }, { id: 'shades', name: '선글라스', need: 60 }, { id: 'party', name: '고깔', need: 120 }, { id: 'crown', name: '왕관', need: 200 }];
 
   // ---------- 저장 (이 브라우저에만) ----------
@@ -39,7 +38,7 @@
     horn: $('hornBtn'), view: $('viewBtn'), recal: $('recalBtn'), home: $('homeBtn'),
     pad: $('pad'), padL: $('padLeft'), padR: $('padRight'), padB: $('padBoong'), padK: $('padKkiik'),
     bubble: $('bubble'),
-    title: $('title'), colors: $('colors'), hats: $('hats'), starTotal: $('starTotal'), stages: $('stages'), stTier: $('stTier'), stName: $('stName'), stBest: $('stBest'), stPrev: $('stPrev'), stNext: $('stNext'), start: $('startBtn'), titleMsg: $('titleMsg'),
+    title: $('title'), colors: $('colors'), hats: $('hats'), starTotal: $('starTotal'), decoMsg: $('decoMsg'), roomLine: $('roomLine'), stages: $('stages'), stTier: $('stTier'), stName: $('stName'), stBest: $('stBest'), stPrev: $('stPrev'), stNext: $('stNext'), start: $('startBtn'), titleMsg: $('titleMsg'),
     calib: $('calib'), calibText: $('calibText'), calibFill: $('calibFill'), calibSub: $('calibSub'),
     roomBox: $('roomBox'), roomOut: $('roomOut'), roomIn: $('roomIn'), roomInfo: $('roomInfo'), roomMsg: $('roomMsg'),
     nick: $('nick'), roomCode: $('roomCode'), roomMake: $('roomMake'), roomJoin: $('roomJoin'), roomCopy: $('roomCopy'), roomLeave: $('roomLeave'),
@@ -94,7 +93,7 @@
     return { x: P[a] + (P[b] - P[a]) * u, y: P[a + 1] + (P[b + 1] - P[a + 1]) * u, h: P[a + 2] + wrap(P[b + 2] - P[a + 2]) * u };
   }
   const totalStars = () => Object.values(store.get('bestStars', {})).reduce((a, b) => a + (+b || 0), 0);
-  const colorOk = (c) => COLORS.includes(c) || EXTRA_COLORS.some((e) => e.c === c && totalStars() >= e.need);
+  const colorOk = (c) => COLORS.includes(c);
   if (!colorOk(color)) color = COLORS[0];
   let hat = store.get('hat', '');
   if (!HATS.some((h) => h.id === hat && totalStars() >= h.need)) hat = '';
@@ -231,18 +230,13 @@
   // ---------- 시작 화면 ----------
   function buildTitle() {
     const have = totalStars();
-    ui.starTotal.textContent = '★ ' + have;
+    ui.starTotal.textContent = '· 지금 ★' + have;
     ui.colors.innerHTML = '';
-    COLORS.map((c) => ({ c, need: 0 })).concat(EXTRA_COLORS).forEach(({ c, need }) => {
+    COLORS.forEach((c) => {
       const b = document.createElement('button');
-      const open = have >= need;
-      b.type = 'button'; b.className = 'swatch' + (c === color ? ' sel' : '') + (open ? '' : ' locked');
-      b.style.background = c; b.setAttribute('aria-label', open ? '차 색깔' : '잠김: 별 ' + need + '개');
-      if (!open) b.textContent = '★' + need;
-      b.onclick = () => {
-        if (!open) { ui.titleMsg.textContent = '별 ' + need + '개를 모으면 열려요 (지금 ' + have + '개)'; return; }
-        color = c; store.set('color', c); buildTitle();
-      };
+      b.type = 'button'; b.className = 'swatch' + (c === color ? ' sel' : '');
+      b.style.background = c; b.setAttribute('aria-label', '차 색깔');
+      b.onclick = () => { color = c; store.set('color', c); buildTitle(); };
       ui.colors.appendChild(b);
     });
     ui.hats.innerHTML = '';
@@ -252,13 +246,29 @@
       b.type = 'button'; b.className = 'hatBtn' + (h.id === hat ? ' sel' : '') + (open ? '' : ' locked');
       b.textContent = open ? h.name : h.name + ' ★' + h.need;
       b.onclick = () => {
-        if (!open) { ui.titleMsg.textContent = '별 ' + h.need + '개를 모으면 열려요 (지금 ' + have + '개)'; return; }
+        if (!open) { ui.decoMsg.textContent = '별 ' + h.need + '개를 모으면 열려요 (지금 ' + have + '개)'; return; }
+        ui.decoMsg.textContent = '';
         hat = h.id; store.set('hat', hat); buildTitle();
       };
       ui.hats.appendChild(b);
     });
+    drawPreview();
     renderStagePick();
   }
+  function drawPreview() {
+    const cv = $('carPreview'); if (!cv) return;
+    const pg = cv.getContext('2d');
+    pg.clearRect(0, 0, cv.width, cv.height);
+    pg.save(); pg.translate(cv.width / 2, cv.height / 2 + 4); pg.scale(1.9, 1.9);
+    D.carTop(pg, color, 0, false, hat);
+    pg.restore();
+  }
+  // 따로 열리는 창: 꾸미기 / 친구랑 / 놀이 방법
+  const openSheet = (id) => { ['decoSheet', 'roomSheet', 'help'].forEach((x) => show($(x), x === id)); if (id === 'decoSheet') buildTitle(); };
+  $('decoBtn').addEventListener('click', () => openSheet('decoSheet'));
+  $('roomBtn').addEventListener('click', () => openSheet('roomSheet'));
+  $('helpBtn').addEventListener('click', () => openSheet('help'));
+  document.querySelectorAll('.sheetClose').forEach((b) => b.addEventListener('click', () => { openSheet(null); renderRoom(); }));
   function renderStagePick() {
     const st = BB.STAGES[stageIdx], best = store.get('best', {}), bs = store.get('bestStars', {});
     const tier = BB.tierOf ? BB.tierOf(st.id) : '';
@@ -314,8 +324,7 @@
     }
   }
   ui.start.addEventListener('click', () => begin(false));
-  $('helpBtn').addEventListener('click', () => show($('help'), true));
-  $('helpClose').addEventListener('click', () => show($('help'), false));
+
   // 버튼 모드는 마이크를 못 쓸 때만 자동으로 (목소리 되면 터치 조작 없음)
 
   function nightIntro() { if (track.night) flash('밤이에요! 소리 내면 깜깜해져', 2.2); }
@@ -344,6 +353,8 @@
   }
   function renderRoom() {
     const inRoom = Net.on;
+    show(ui.roomLine, inRoom);
+    if (inRoom) ui.roomLine.textContent = '방 ' + Net.code + ' · ' + Net.members.length + '명';
     show(ui.roomOut, !inRoom); show(ui.roomIn, inRoom);
     show(ui.roomHud, inRoom && (state === 'play' || state === 'arrived' || state === 'count'));
     if (inRoom) {
@@ -373,7 +384,7 @@
   let pendingStart = null;   // 보정 중에 받은 같이 출발
   Net.onStart = ({ stage, wait }) => {
     stage = Math.min(stage, BB.STAGES.length - 1);
-    if (!started) { ui.roomMsg.textContent = '친구가 출발해요! 「시작」을 눌러 줘'; stageIdx = stage; loadStage(stage); buildTitle(); return; }
+    if (!started) { ui.roomMsg.textContent = ui.titleMsg.textContent = '친구가 출발해요! 「시작」을 눌러 줘'; stageIdx = stage; loadStage(stage); buildTitle(); return; }
     if (state === 'calib') { pendingStart = { stage, at: performance.now() + wait }; return; }
     beginCount(stage, wait);
   };
@@ -396,13 +407,16 @@
     const r = await Net.join(code, nickVal(), color);
     joining = false; ui.roomMake.disabled = ui.roomJoin.disabled = false;
     ui.roomMsg.textContent = r.ok ? '친구에게 링크를 보내 줘. 다 모이면 게임 안에서 「같이 출발」!' : r.why;
+    // 친구 방에 들어간 거면 창을 닫고 바로 「시작」 누를 수 있게
+    if (r.ok && joinedByCode) { openSheet(null); ui.titleMsg.textContent = '방 ' + Net.code + '에 들어왔어요! 「시작」을 눌러 줘'; }
     renderRoom();
     if (r.ok) setupVoice();
   }
   ui.nick.value = store.get('nick', '');
-  ui.roomMake.addEventListener('click', () => joinRoom(Net.makeCode()));
-  ui.roomJoin.addEventListener('click', () => joinRoom(ui.roomCode.value));
-  ui.roomCode.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinRoom(ui.roomCode.value); });
+  let joinedByCode = false;
+  ui.roomMake.addEventListener('click', () => { joinedByCode = false; joinRoom(Net.makeCode()); });
+  ui.roomJoin.addEventListener('click', () => { joinedByCode = true; joinRoom(ui.roomCode.value); });
+  ui.roomCode.addEventListener('keydown', (e) => { if (e.key === 'Enter') { joinedByCode = true; joinRoom(ui.roomCode.value); } });
   ui.roomLeave.addEventListener('click', async () => { await Net.leave(); ui.roomMsg.textContent = ''; renderRoom(); });
   ui.roomCopy.addEventListener('click', () => {
     const link = location.origin + location.pathname + '#room-' + Net.code;
@@ -412,10 +426,10 @@
   });
   ui.raceBtn.addEventListener('click', () => { const r = Net.startRace(stageIdx); beginCount(r.stage, r.wait); });
   ui.voiceBtn.addEventListener('click', () => Net.setVoice(!Net.voice));
-  if (BB.ARTIFACT) show(ui.roomBox, false);   // 아티팩트에선 아티팩트 자체 같이 달리기 사용
+  if (BB.ARTIFACT) { show(ui.roomBox, false); show($('roomBtn'), false); }   // 아티팩트에선 아티팩트 자체 같이 달리기 사용
   else {
     const m = location.hash.match(/^#room-([A-Za-z0-9]{4})$/);
-    if (m) { ui.roomCode.value = m[1].toUpperCase(); ui.roomMsg.textContent = '친구 방 ' + m[1].toUpperCase() + ' — 이름 쓰고 「들어가기」'; }
+    if (m) { ui.roomCode.value = m[1].toUpperCase(); ui.roomMsg.textContent = '친구 방 ' + m[1].toUpperCase() + ' — 이름 쓰고 「들어가기」'; openSheet('roomSheet'); }
   }
 
   function goTitle() {

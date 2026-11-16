@@ -191,7 +191,7 @@ button.round.big2 { width: 48px; height: 48px; font-size: 18px; }
 .stTier[data-t="입문"] { background: #69b85a; } .stTier[data-t="새 요소"] { background: #4dabf7; }
 .stTier[data-t="중급"] { background: #f59f00; } .stTier[data-t="상급"] { background: #ff922b; }
 .stTier[data-t="고급"] { background: #e8673c; } .stTier[data-t="최고"] { background: #c2255c; }
-.stTier[data-t="보너스"] { background: #3b3a7a; }
+.stTier[data-t="보너스"] { background: #3b3a7a; } .stTier[data-t="도전"] { background: #212529; }
 .stName { font-size: 22px; white-space: nowrap; }
 .stBest { font-size: 13px; opacity: .75; min-height: 1.2em; font-variant-numeric: tabular-nums; }
 
@@ -207,13 +207,8 @@ button.round.big2 { width: 48px; height: 48px; font-size: 18px; }
 .starTotal { color: #e09a00; }
 
 #help { background: rgba(191,230,255,.92); z-index: 3; }
-.helpCard { background: #fff; border-radius: 22px; padding: 16px 18px; max-width: 360px; width: 100%; box-shadow: 0 4px 0 rgba(0,0,0,.1); display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.helpCard h2 { margin: 0; font-weight: normal; font-size: 26px; color: #ff6b6b; }
-.helpList { margin: 0; padding: 0; list-style: none; text-align: left; font-size: 15px; line-height: 1.45; display: flex; flex-direction: column; gap: 6px; }
-.helpList b { font-weight: normal; }
 .c-boong { color: #e8673c; } .c-kkiik { color: #1597b8; } .c-quiet { color: #7a5cc4; } .c-ice { color: #4dabf7; } .c-mud { color: #8a6440; } .c-star { color: #e09a00; }
 
-button.round.helpQ { position: absolute; right: 12px; top: calc(12px + env(safe-area-inset-top)); font-size: 20px; }
 .swatch { width: 32px; height: 32px; }
 #colors { gap: 7px; max-width: 340px; }
 .hatBtn { font-size: 13px; padding: 4px 9px; }
@@ -227,3 +222,21 @@ button.round.helpQ { position: absolute; right: 12px; top: calc(12px + env(safe-
   button.big { padding: 11px 36px; font-size: 24px; }
   .roomBox input, button.mid.small { padding-top: 5px; padding-bottom: 5px; }
 }
+
+/* 시작 화면 메뉴 + 따로 열리는 창 */
+.menuRow { display: flex; gap: 8px; }
+.menuBtn { font: inherit; font-size: 16px; color: #3a3350; border: 0; border-radius: 999px; padding: 8px 14px; background: rgba(255,255,255,.9); box-shadow: 0 3px 0 rgba(0,0,0,.12); }
+.menuBtn:active { transform: translateY(2px); }
+.roomLine { font-size: 15px; background: rgba(255,255,255,.85); border-radius: 999px; padding: 4px 12px; }
+.sheet { background: rgba(191,230,255,.92); z-index: 3; }
+.sheetCard { background: #fff; border-radius: 22px; padding: 16px 18px; width: 100%; max-width: 340px; box-shadow: 0 4px 0 rgba(0,0,0,.1); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.sheetCard h2 { margin: 0; font-weight: normal; font-size: 26px; color: #ff6b6b; }
+.sheetLabel { font-size: 14px; opacity: .7; }
+#carPreview { width: 96px; height: 96px; }
+.tip { font-size: 13px; opacity: .65; }
+.helpGroup { width: 100%; text-align: left; }
+.helpGroup h3 { margin: 4px 0 2px; font-size: 15px; font-weight: normal; color: #fff; background: #8a7fb0; display: inline-block; padding: 1px 10px; border-radius: 999px; }
+.helpGroup p { margin: 3px 0; font-size: 15px; line-height: 1.4; }
+.helpGroup b { font-weight: normal; }
+
+.sheetCard .roomBox input { background: #f3f0fa; border-color: #e3ddf2; }
