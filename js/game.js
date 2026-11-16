@@ -282,7 +282,32 @@
     pg.restore();
   }
   // 따로 열리는 창: 꾸미기 / 친구랑 / 놀이 방법
-  const openSheet = (id) => { ['decoSheet', 'roomSheet', 'help', 'installSheet'].forEach((x) => show($(x), x === id)); if (id === 'decoSheet') buildTitle(); };
+  const openSheet = (id) => { ['decoSheet', 'roomSheet', 'help', 'installSheet', 'stageSheet'].forEach((x) => show($(x), x === id)); if (id === 'decoSheet') buildTitle(); if (id === 'stageSheet') buildStageGrid(); };
+  // 스테이지 한눈에: 난이도 묶음별 번호 버튼 (깬 곳은 초록, 별 수 표시)
+  function buildStageGrid() {
+    const grid = $('stageGrid'), best = store.get('best', {}), bs = store.get('bestStars', {});
+    grid.innerHTML = '';
+    let row = null, tierNow = null;
+    BB.STAGES.forEach((st, i) => {
+      const tier = BB.tierOf ? BB.tierOf(st.id) : '';
+      if (tier !== tierNow) {
+        tierNow = tier;
+        row = document.createElement('div'); row.className = 'tierRow';
+        const t = document.createElement('div'); t.className = 'stTier'; t.dataset.t = tier; t.textContent = tier;
+        const btns = document.createElement('div'); btns.className = 'tierBtns';
+        row.append(t, btns); grid.appendChild(row);
+      }
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'gridBtn' + (best[st.id] ? ' done' : '') + (i === stageIdx ? ' sel' : '');
+      b.setAttribute('aria-label', st.id + '. ' + st.name);
+      const n = document.createElement('span'); n.textContent = st.id;
+      b.appendChild(n);
+      if (bs[st.id]) { const sm = document.createElement('small'); sm.textContent = '★' + bs[st.id]; b.appendChild(sm); }
+      b.onclick = () => { loadStage(i); store.set('lastStage', i); renderStagePick(); openSheet(null); };
+      row.lastChild.appendChild(b);
+    });
+  }
+  $('stages').addEventListener('click', () => openSheet('stageSheet'));
 
   // ---------- 앱으로 설치 ----------
   // 이미 앱으로 실행 중이면 버튼 숨김. 안드로이드 Chrome 등은 설치 창을 바로, 아이폰은 안내
@@ -318,6 +343,7 @@
   function pickStage(d) {
     const n = BB.STAGES.length;
     loadStage((stageIdx + d + n) % n);
+    store.set('lastStage', stageIdx);
     renderStagePick();
   }
   ui.stPrev.addEventListener('click', () => pickStage(-1));
@@ -608,6 +634,7 @@
     show(ui.arrive, false);
     stageIdx = (stageIdx + 1) % BB.STAGES.length;
     loadStage(stageIdx);
+    store.set('lastStage', stageIdx);
     state = 'play';
     nightIntro();
   });
@@ -1488,7 +1515,7 @@
   // iOS는 전화·시리 뒤 오디오가 'interrupted'로 멈춤 → 화면을 누르면 다시 살림 (친구 목소리 재생도 다시 시도)
   document.addEventListener('pointerdown', () => { A.resume(); Sfx.unlock(); Net.kickAudio(); }, { capture: true });
 
-  loadStage(0);
+  { const ls = store.get('lastStage', 0); loadStage(Number.isInteger(ls) && ls >= 0 && ls < BB.STAGES.length ? ls : 0); }
   buildTitle();
   renderRoom();
   On.init();

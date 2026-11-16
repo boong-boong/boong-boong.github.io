@@ -245,3 +245,16 @@ button.round.big2 { width: 48px; height: 48px; font-size: 18px; }
 .installSteps { width: 100%; text-align: left; }
 .installSteps p { margin: 4px 0; font-size: 16px; line-height: 1.4; }
 .installSteps b { font-weight: normal; color: #e8673c; }
+
+.stInfo { cursor: pointer; }
+.stInfo:active { transform: translateY(1px); }
+.stInfo .stHint { font-size: 11px; opacity: .55; }
+.stageGrid { width: 100%; max-height: 62vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.tierRow { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.tierRow .stTier { font-size: 12px; }
+.tierBtns { display: flex; flex-wrap: wrap; gap: 6px; }
+.gridBtn { font: inherit; font-size: 16px; width: 44px; height: 44px; border: 0; border-radius: 12px; background: #f1eef7; color: #3a3350; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; }
+.gridBtn small { font-size: 10px; color: #e09a00; margin-top: 2px; }
+.gridBtn.done { background: #d3f9d8; }
+.gridBtn.sel { background: #ff6b6b; color: #fff; }
+.gridBtn.sel small { color: #fff; }
