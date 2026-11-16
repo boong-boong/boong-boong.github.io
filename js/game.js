@@ -314,6 +314,8 @@
     }
   }
   ui.start.addEventListener('click', () => begin(false));
+  $('helpBtn').addEventListener('click', () => show($('help'), true));
+  $('helpClose').addEventListener('click', () => show($('help'), false));
   // 버튼 모드는 마이크를 못 쓸 때만 자동으로 (목소리 되면 터치 조작 없음)
 
   function nightIntro() { if (track.night) flash('밤이에요! 소리 내면 밝아져', 2.2); }
@@ -1397,6 +1399,8 @@
   buildTitle();
   renderRoom();
   On.init();
+  // 홈 화면에 추가했을 때 오프라인에서도 열리게 (아티팩트 안에선 안 씀)
+  if (!BB.ARTIFACT && 'serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
   requestAnimationFrame(frame);
 
   // 테스트/디버그용

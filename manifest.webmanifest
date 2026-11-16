@@ -1,9 +1,15 @@
 {
   "name": "붕붕",
   "short_name": "붕붕",
-  "start_url": ".",
+  "description": "입으로 운전하는 둥근 자동차 게임",
+  "start_url": "./",
+  "scope": "./",
   "display": "fullscreen",
   "orientation": "portrait",
   "background_color": "#bfe6ff",
-  "theme_color": "#bfe6ff"
+  "theme_color": "#bfe6ff",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
 }

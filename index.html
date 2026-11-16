@@ -7,6 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
   <title>붕붕</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -96,7 +98,30 @@
         <div id="roomMsg" class="msg"></div>
       </div>
       <button id="startBtn" class="big" type="button">시작</button>
+      <button id="helpBtn" class="round helpQ" type="button" aria-label="놀이 방법">?</button>
       <div id="titleMsg" class="msg"></div>
+    </div>
+
+    <!-- 놀이 방법 -->
+    <div id="help" class="screen hidden">
+      <div class="helpCard">
+        <h2>놀이 방법</h2>
+        <ul class="helpList">
+          <li><b class="c-boong">붕~</b> 낮고 울리는 소리 → 앞으로. 크게, 길게 할수록 빨라요</li>
+          <li><b class="c-kkiik">끼익!</b> 높고 날카로운 소리 → 미끄러지며 급커브</li>
+          <li><b>기울이기</b> 폰을 좌우로 기울여 방향 (컴퓨터는 ← →)</li>
+          <li><b>소리 멈춤</b> 2초쯤 굴러가다 멈춰요</li>
+          <li><b class="c-star">★ 별</b> 모으면 차 색깔·모자가 열려요 · <b class="c-kkiik">번개</b> 잠깐 터보</li>
+          <li><b>잔디</b> 느려져요 · <b>벽·나무·문</b> 튕겨요 · <b>길 밖</b> 떨어지면 근처에서 다시</li>
+          <li><b class="c-boong">점프대</b> 위에서 크게 붕!! 클수록 멀리 날아요</li>
+          <li><b class="c-quiet">쉿 구간</b> 곰이 자요. 미리 속도 내고 조용히 굴러서</li>
+          <li><b class="c-ice">얼음</b> 미끄러워요 · <b class="c-mud">진흙</b> 크게 붕 해야 빠져나와요</li>
+          <li><b>갈림길</b> 지름길 쪽으로 꺾고 끼익! 짧지만 어려워요</li>
+          <li><b>밤길</b> 소리 낼수록 밝아져요 · <b class="c-kkiik">끼익 문</b> 앞에서 끼익 하면 열려요</li>
+          <li><b>친구랑</b> 방 만들고 링크 보내기 → 「같이 출발」 (이어폰 쓰기!)</li>
+        </ul>
+        <button id="helpClose" class="big" type="button">알겠어</button>
+      </div>
     </div>
 
     <!-- 보정 화면 -->

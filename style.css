@@ -201,3 +201,25 @@ button.round.big2 { width: 48px; height: 48px; font-size: 18px; }
 .hatBtn.sel { background: #ff6b6b; color: #fff; box-shadow: 0 2px 0 #c94848; }
 .hatBtn.locked { opacity: .5; }
 .starTotal { color: #e09a00; }
+
+#help { background: rgba(191,230,255,.92); z-index: 3; }
+.helpCard { background: #fff; border-radius: 22px; padding: 16px 18px; max-width: 360px; width: 100%; box-shadow: 0 4px 0 rgba(0,0,0,.1); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.helpCard h2 { margin: 0; font-weight: normal; font-size: 26px; color: #ff6b6b; }
+.helpList { margin: 0; padding: 0; list-style: none; text-align: left; font-size: 15px; line-height: 1.45; display: flex; flex-direction: column; gap: 6px; }
+.helpList b { font-weight: normal; }
+.c-boong { color: #e8673c; } .c-kkiik { color: #1597b8; } .c-quiet { color: #7a5cc4; } .c-ice { color: #4dabf7; } .c-mud { color: #8a6440; } .c-star { color: #e09a00; }
+
+button.round.helpQ { position: absolute; right: 12px; top: calc(12px + env(safe-area-inset-top)); font-size: 20px; }
+.swatch { width: 32px; height: 32px; }
+#colors { gap: 7px; max-width: 340px; }
+.hatBtn { font-size: 13px; padding: 4px 9px; }
+@media (max-height: 760px) {
+  #title { gap: 8px; }
+  .logo { font-size: 46px; }
+  .sub { display: none; }
+  .pickLabel { margin-top: 0; }
+  .stInfo { padding: 5px 10px; }
+  .stName { font-size: 19px; }
+  button.big { padding: 11px 36px; font-size: 24px; }
+  .roomBox input, button.mid.small { padding-top: 5px; padding-bottom: 5px; }
+}
