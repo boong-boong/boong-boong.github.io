@@ -318,7 +318,7 @@
   $('helpClose').addEventListener('click', () => show($('help'), false));
   // 버튼 모드는 마이크를 못 쓸 때만 자동으로 (목소리 되면 터치 조작 없음)
 
-  function nightIntro() { if (track.night) flash('밤이에요! 소리 내면 밝아져', 2.2); }
+  function nightIntro() { if (track.night) flash('밤이에요! 소리 내면 깜깜해져', 2.2); }
   function startPlay() {
     show(ui.title, false); show(ui.calib, false); show(ui.arrive, false);
     show(ui.hud, true);
@@ -1297,7 +1297,7 @@
 
     if (state === 'count') {
       countT -= dt;
-      if (countT <= 0) { state = 'play'; flash(track.night ? '붕! 소리 내면 밝아져' : '붕!', track.night ? 1.6 : 0.7); if (mode === 'mic') A.startRecording(); renderRoom(); }
+      if (countT <= 0) { state = 'play'; flash(track.night ? '붕! 소리 내면 깜깜해져' : '붕!', track.night ? 1.6 : 0.7); if (mode === 'mic') A.startRecording(); renderRoom(); }
     }
     if (state === 'play' || state === 'arrived') stepCar(dt);
     if (state === 'play') {
@@ -1308,8 +1308,9 @@
     stepDoors(dt);
     if (track.night) {
       // 소리를 낼수록 밝게 (켜질 땐 빠르게, 꺼질 땐 천천히)
-      const ty = inputType(), want = state !== 'play' ? 1 : ty === 'none' ? 0.15 : Math.min(1.2, 0.5 + 0.6 * inputIntensity());
-      light += (want - light) * Math.min(1, dt * (want > light ? 8 : 1.4));
+      // 밤: 소리를 내면 불이 어두워지고(빠르게), 조용히 해야 다시 밝아짐(천천히)
+      const ty = inputType(), want = state !== 'play' || ty === 'none' ? 1 : Math.max(0.03, 0.3 - 0.3 * Math.min(1, inputIntensity()));
+      light += (want - light) * Math.min(1, dt * (want < light ? 9 : 0.9));
     }
     if (car.blink > 0) car.blink -= dt;
     if (myHorn > 0) myHorn -= dt;
@@ -1351,7 +1352,7 @@
       g.save(); g.translate(sx, sy);
       const r3 = BB.Render3D.draw(g, cw, ch, { track, car, camA: cam.a, particles, peers, color, hat, myHorn, mainI: car.pi ? T.pointAt(track, car.s).i : car.segI });
       g.restore();
-      if (track.night && r3) nightOverlay(r3.x, r3.y - 110, (cw / 400) * (130 + 250 * light));
+      if (track.night && r3) nightOverlay(r3.x, r3.y - 110, (cw / 400) * (80 + 280 * light));
     } else {
       g.fillStyle = track.night ? '#1d2252' : '#bfe6ff'; g.fillRect(0, 0, cw, ch);
       g.save();
@@ -1376,7 +1377,7 @@
       g.restore();
       if (track.night) {
         const [cx, cy] = w2s(car.x + Math.sin(car.h) * 60, car.y - Math.cos(car.h) * 60);
-        nightOverlay(cx, cy, (110 + 230 * light) * cam.z);
+        nightOverlay(cx, cy, (65 + 270 * light) * cam.z);
       }
       // 이름표 / 빵!
       for (const p of peers) {
