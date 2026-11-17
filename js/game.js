@@ -39,7 +39,7 @@
     pad: $('pad'), padL: $('padLeft'), padR: $('padRight'), padB: $('padBoong'), padK: $('padKkiik'),
     bubble: $('bubble'),
     title: $('title'), colors: $('colors'), hats: $('hats'), starTotal: $('starTotal'), decoMsg: $('decoMsg'), roomLine: $('roomLine'), stages: $('stages'), stTier: $('stTier'), stName: $('stName'), stBest: $('stBest'), stPrev: $('stPrev'), stNext: $('stNext'), start: $('startBtn'), titleMsg: $('titleMsg'),
-    calib: $('calib'), calibText: $('calibText'), calibFill: $('calibFill'), calibSub: $('calibSub'),
+    calib: $('calib'), calibStop: $('calibStop'), calibText: $('calibText'), calibFill: $('calibFill'), calibSub: $('calibSub'),
     roomBox: $('roomBox'), roomOut: $('roomOut'), roomIn: $('roomIn'), roomInfo: $('roomInfo'), roomMsg: $('roomMsg'),
     nick: $('nick'), roomCode: $('roomCode'), roomMake: $('roomMake'), roomJoin: $('roomJoin'), roomCopy: $('roomCopy'), roomLeave: $('roomLeave'),
     roomHud: $('roomHud'), raceBtn: $('raceBtn'), voiceBtn: $('voiceBtn'),
@@ -209,6 +209,7 @@
   window.addEventListener('keydown', (e) => {
     if (typing(e)) return;                       // 이름·방 코드 칸에 글자 입력 중
     if (e.key === 'h' || e.key === 'H') { if (!e.repeat) honk(); return; }
+    if (e.key === 'Escape' && state === 'calib') { stopCalib(); return; }
     const k = KEYS[e.key]; if (!k) return;
     setKey(k, true); e.preventDefault();
   });
@@ -557,9 +558,33 @@
     state = 'calib';
     show(ui.arrive, false); show(ui.hud, false); show(ui.pad, false); setBubble('', '');
     show(ui.calib, true);
-    calib = { t: 0, noiseAcc: {}, noiseDb: [], boong: [], kkiik: [], noiseSet: false, done: false, ok: true, quick: !!quick };
+    // prev: 중간에 그만두면 되돌릴 지난번 값 (처음 하는 거면 없음 → 처음 화면으로)
+    calib = { t: 0, noiseAcc: {}, noiseDb: [], boong: [], kkiik: [], noiseSet: false, done: false, ok: true, quick: !!quick, prev: calibrated ? A.exportCal() : null };
+    show(ui.calibStop, true);
     A.keys.boong = A.keys.kkiik = false;
   }
+  // 보정 화면 닫고 원래 하던 곳으로
+  function leaveCalib() {
+    show(ui.calib, false);
+    ui.calibSub.textContent = '';
+    if (pendingStart) {
+      // 보정하는 동안 친구가 출발 눌렀으면 남은 시간만큼(최소 1.5초) 세고 같이 출발
+      const ps = pendingStart; pendingStart = null;
+      beginCount(ps.stage, Math.max(1500, ps.at - performance.now()));
+    }
+    else if (stateBeforeCalib === 'arrived') { show(ui.hud, true); show(ui.arrive, true); state = 'arrived'; }
+    else if (running || runT > 0) { show(ui.hud, true); state = 'play'; }
+    else startPlay();
+    car.coastV0 = -1;
+  }
+  // 중간에 그만두기: 지난번 값이 있으면 그대로 되돌리고 계속, 처음이면 처음 화면으로
+  function stopCalib() {
+    if (state !== 'calib' || !calib || calib.done) return;
+    A.keys.boong = A.keys.kkiik = false;
+    if (calib.prev) { A.importCal(calib.prev); calib = null; leaveCalib(); }
+    else { calib = null; goTitle(); }
+  }
+  ui.calibStop.addEventListener('click', stopCalib);
   ui.recal.addEventListener('click', () => {
     if (!micOk || state === 'count') return;
     startCalibration(state === 'arrived' ? 'arrived' : 'play');
@@ -596,19 +621,8 @@
       if (!c.done) { c.done = true; c.ok = A.applyCalibration({ boong: c.boong, kkiik: c.kkiik }); calibrated = true; if (c.ok) store.set('cal', A.exportCal()); }
       text = '좋아!';
       ui.calibSub.textContent = c.ok ? '' : '소리가 잘 안 들렸어요\n「엔진 조정」을 다시 해도 돼요';
-      if (c.t > t3 + CALIB.ok + (c.ok ? 0 : 1.5)) {
-        show(ui.calib, false);
-        ui.calibSub.textContent = '';
-        if (pendingStart) {
-          // 보정하는 동안 친구가 출발 눌렀으면 남은 시간만큼(최소 1.5초) 세고 같이 출발
-          const ps = pendingStart; pendingStart = null;
-          beginCount(ps.stage, Math.max(1500, ps.at - performance.now()));
-        }
-        else if (stateBeforeCalib === 'arrived') { show(ui.hud, true); show(ui.arrive, true); state = 'arrived'; }
-        else if (running || runT > 0) { show(ui.hud, true); state = 'play'; }
-        else startPlay();
-        car.coastV0 = -1;
-      }
+      show(ui.calibStop, false);
+      if (c.t > t3 + CALIB.ok + (c.ok ? 0 : 1.5)) leaveCalib();
     }
     if (ui.calibText.textContent !== text) ui.calibText.textContent = text;
     ui.calibText.style.color = cls === 'boong' ? '#e8673c' : cls === 'kkiik' ? '#1597b8' : '';
