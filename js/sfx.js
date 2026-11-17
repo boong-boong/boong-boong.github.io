@@ -64,6 +64,10 @@
       tone({ type: 'square', f0: 494, dur: 0.32, vol: 0.1 });
     },
     bump() {
+      // 벽을 따라 긁을 때 연달아 나지 않게 0.5초에 한 번
+      const now = performance.now();
+      if (now - (Sfx._bumpAt || 0) < 500) return;
+      Sfx._bumpAt = now;
       tone({ type: 'sine', f0: 140, f1: 45, dur: 0.18, vol: 0.4 });
       noise({ dur: 0.08, vol: 0.15, f: 400 });
     },

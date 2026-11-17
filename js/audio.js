@@ -169,6 +169,8 @@
     // 게임 효과음이 나는 중엔 마이크 판단을 잠깐 멈춤 (스피커 소리가 다시 들어오니까)
     const muted = BB.Sfx && BB.Sfx.micMuted() && !keys.boong && !keys.kkiik;
     if (out.ready && muted) {
+      // 효과음 중엔 판단을 멈추되, 끼익은 붙잡아 두지 않음 (벽 쿵 소리가 이어지면 끼익에 갇혀 차가 안 나가던 문제)
+      if (out.type === 'kkiik') { out.type = 'none'; cand = 'none'; candT = 0; activeRaw = false; }
       if (out.type === 'none') out.silentT += dt; else out.holdT += dt;
       return null;
     }
@@ -190,12 +192,12 @@
     }
 
     // 종류 판단: 경계 근처에선 이전 판단 유지, 바뀌려면 잠깐 버텨야
+    // 높이가 애매하면 붕(달리기) 쪽으로. 끼익은 경계보다 확실히 높을 때만.
+    // (예전엔 애매하면 직전 판단을 유지해서, 끼익 바로 뒤의 조금 높은 붕이 계속 끼익으로 잡혀 차가 안 나갔음)
     let want = 'none';
     if (activeRaw) {
-      const m = 0.08;
-      if (out.pitch > cal.split + m) want = 'kkiik';
-      else if (out.pitch < cal.split - m) want = 'boong';
-      else want = out.type !== 'none' ? out.type : (out.pitch > cal.split ? 'kkiik' : 'boong');
+      const up = out.type === 'kkiik' ? 0.03 : 0.12;   // 끼익 중엔 조금만 내려와도 붕으로
+      want = out.pitch > cal.split + up ? 'kkiik' : 'boong';
     }
     // 키보드가 있으면 우선
     if (keys.kkiik) want = 'kkiik';
@@ -205,7 +207,7 @@
     else {
       if (cand !== want) { cand = want; candT = 0; }
       candT += dt;
-      const need = want === 'none' ? 0 : (out.type === 'none' ? 0.03 : 0.07);
+      const need = want === 'none' ? 0 : out.type === 'none' ? 0.03 : want === 'boong' ? 0.04 : 0.07;
       if (candT >= need) { out.type = want; out.holdT = 0; }
     }
 
