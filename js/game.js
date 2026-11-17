@@ -325,12 +325,38 @@
       e.prompt();
       try { await e.userChoice; } catch (x) {}
       renderInstall();
+
+  // ---------- 앱 공유 ----------
+  // 폰은 공유 창(카톡·문자 등), 공유 창이 없으면 링크 복사
+  $('shareBtn').addEventListener('click', async () => {
+    const url = location.origin + location.pathname;
+    const data = { title: '입으로 하는 운전, 붕붕', text: '붕~ 하면 가고, 끼익! 하면 미끄러지는 목소리 자동차 게임', url };
+    if (navigator.share) {
+      try { await navigator.share(data); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    try { await navigator.clipboard.writeText(url); ui.titleMsg.textContent = '링크를 복사했어요! 친구에게 붙여 넣어 보내 줘'; }
+    catch (e) { ui.titleMsg.textContent = url; }
+  });
+  if (BB.ARTIFACT) show($('shareBtn'), false);
       return;
     }
     show($('installIos'), isIos); show($('installOther'), !isIos);
     openSheet('installSheet');
   });
   renderInstall();
+
+  // ---------- 앱 공유 ----------
+  // 폰은 공유 창(카톡·문자 등), 공유 창이 없으면 링크 복사
+  $('shareBtn').addEventListener('click', async () => {
+    const url = location.origin + location.pathname;
+    const data = { title: '입으로 하는 운전, 붕붕', text: '붕~ 하면 가고, 끼익! 하면 미끄러지는 목소리 자동차 게임', url };
+    if (navigator.share) {
+      try { await navigator.share(data); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    try { await navigator.clipboard.writeText(url); ui.titleMsg.textContent = '링크를 복사했어요! 친구에게 붙여 넣어 보내 줘'; }
+    catch (e) { ui.titleMsg.textContent = url; }
+  });
+  if (BB.ARTIFACT) show($('shareBtn'), false);
   $('decoBtn').addEventListener('click', () => openSheet('decoSheet'));
   $('roomBtn').addEventListener('click', () => openSheet('roomSheet'));
   $('helpBtn').addEventListener('click', () => openSheet('help'));

@@ -281,3 +281,9 @@ button.round.icon svg { width: 24px; height: 24px; fill: none; stroke: #3a3350; 
 button.round.icon.horn svg { stroke: #e8673c; }
 button.round.icon.horn svg .fill { fill: #e8673c; }
 #recalBtn svg rect { fill: #3a3350; stroke: none; }
+
+/* 시작 화면 오른쪽 위: 앱 설치 · 공유 */
+.titleCorner { position: absolute; right: 12px; top: calc(12px + env(safe-area-inset-top)); display: flex; gap: 8px; z-index: 1; }
+.titleCorner svg .dot { fill: #3a3350; stroke: none; }
+#installBtn { background: #ff6b6b; box-shadow: 0 2px 0 #c94848; }
+#installBtn svg { stroke: #fff; }
