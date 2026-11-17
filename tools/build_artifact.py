@@ -20,7 +20,7 @@ def inline(m):
 body = re.sub(r'<script src="([^"]+)"></script>', inline, body)
 body = '<script>window.BB = window.BB || {}; window.BB.ARTIFACT = true;</script>\n' + body
 
-out = f'''<title>붕붕</title>
+out = f'''<title>입으로 하는 운전, 붕붕</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
