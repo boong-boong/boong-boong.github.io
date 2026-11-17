@@ -59,9 +59,31 @@
     volume: 0.5,
     unlock() { ensure(); },
     micMuted() { return performance.now() < muteUntil; },
+    // 자동차 경적: 두 음(약 370·465Hz, 장3도)이 동시에 + 살짝 찌그러뜨리고 경적 울림통처럼 대역 필터
     horn() {
-      tone({ type: 'square', f0: 392, dur: 0.32, vol: 0.12 });
-      tone({ type: 'square', f0: 494, dur: 0.32, vol: 0.1 });
+      const c = ensure(); if (!c || !Sfx.on) return;
+      const t = c.currentTime, dur = 0.42;
+      const mix = c.createGain(); mix.gain.value = 0.5;
+      [370, 466].forEach((f, i) => {
+        const o = c.createOscillator(); o.type = 'sawtooth';
+        o.frequency.setValueAtTime(f * 0.97, t);
+        o.frequency.linearRampToValueAtTime(f, t + 0.04);          // 누르는 순간 살짝 올라가며 붙는 느낌
+        o.detune.value = i ? 6 : -6;
+        o.connect(mix); o.start(t); o.stop(t + dur + 0.08);
+      });
+      const shaper = c.createWaveShaper();
+      const curve = new Float32Array(256);
+      for (let i = 0; i < 256; i++) { const x = (i / 255) * 2 - 1; curve[i] = Math.tanh(x * 3); }
+      shaper.curve = curve;
+      const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = 0.8;
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3200;
+      const env = c.createGain();
+      env.gain.setValueAtTime(0.0001, t);
+      env.gain.exponentialRampToValueAtTime(0.35, t + 0.015);
+      env.gain.setValueAtTime(0.35, t + dur - 0.06);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      mix.connect(shaper); shaper.connect(bp); bp.connect(lp); lp.connect(env); env.connect(master);
+      duck(dur);
     },
     bump() {
       // 벽을 따라 긁을 때 연달아 나지 않게 0.5초에 한 번

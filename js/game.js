@@ -588,7 +588,13 @@
   On.onHorn = (key) => { peerHorn.set(key, 0.9); Sfx.horn(); };
 
   // ---------- 시점 ----------
-  function applyView() { ui.view.textContent = view === '3d' ? '위' : '3D'; ui.view.setAttribute('aria-label', view === '3d' ? '위에서 보기' : '뒤에서 보기'); }
+  // 시점 버튼 아이콘: 지금 위에서 보는 중이면 "뒤에서 보기(3D 상자)", 뒤에서 보는 중이면 "위에서 보기(지도)"
+  const ICON_3D = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>';
+  const ICON_TOP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>';
+  function applyView() {
+    ui.view.innerHTML = view === '3d' ? ICON_TOP : ICON_3D;
+    ui.view.setAttribute('aria-label', view === '3d' ? '위에서 보기' : '뒤에서 보기');
+  }
   ui.view.addEventListener('click', () => { view = view === '3d' ? '2d' : '3d'; store.set('view', view); applyView(); resize(); });
   applyView();
 
