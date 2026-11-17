@@ -287,3 +287,6 @@ button.round.icon.horn svg .fill { fill: #e8673c; }
 .titleCorner svg .dot { fill: #3a3350; stroke: none; }
 #installBtn { background: #ff6b6b; box-shadow: 0 2px 0 #c94848; }
 #installBtn svg { stroke: #fff; }
+
+/* 시작 화면 안내 문구: 길 그림 위에서도 잘 읽히게 */
+#titleMsg:not(:empty) { background: rgba(255,255,255,.92); border-radius: 14px; padding: 8px 14px; box-shadow: 0 2px 0 rgba(0,0,0,.1); }

@@ -400,8 +400,18 @@
       catch (e) { micOk = false; }
     }
     if (orientReq) await orientReq;
-    try { if (navigator.wakeLock) navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
     ui.start.disabled = false;
+    // 버튼으로는 못 함: 마이크가 없으면 시작하지 않고 허용 방법 안내 (아티팩트 버전만 예외 — 거긴 마이크를 쓸 수 없음)
+    if (!micOk && !BB.ARTIFACT && !forceButtons) {
+      const android = /android/i.test(navigator.userAgent);
+      ui.titleMsg.textContent = !navigator.mediaDevices
+        ? '마이크를 쓸 수 없는 주소예요. https://boong-boong.github.io 로 열어 주세요'
+        : isIos ? '입으로 하는 게임이라 마이크가 있어야 해요. 설정 → Safari(또는 붕붕 앱) → 마이크 → 허용, 그리고 다시 「시작」'
+        : android ? '입으로 하는 게임이라 마이크가 있어야 해요. 주소창 왼쪽 자물쇠 → 권한 → 마이크 허용, 그리고 다시 「시작」'
+        : '입으로 하는 게임이라 마이크가 있어야 해요. 주소창의 마이크 아이콘에서 허용하고 다시 「시작」';
+      return;
+    }
+    try { if (navigator.wakeLock) navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
 
     mode = !forceButtons && micOk ? 'mic' : 'buttons';
     started = true;
@@ -412,13 +422,13 @@
     show(ui.title, false);
     if (mode === 'mic' && (!calibrated || usedSaved)) startCalibration('play', usedSaved);
     else {
-      if (mode === 'buttons' && !forceButtons) flash('마이크를 쓸 수 없어서 버튼으로 해요', 2.6);
+      if (mode === 'buttons' && !forceButtons) flash('마이크를 쓸 수 없어서 버튼으로 해요', 2.6);   // 아티팩트 버전만
       startPlay();
     }
   }
   ui.start.addEventListener('click', () => begin(false));
 
-  // 버튼 모드는 마이크를 못 쓸 때만 자동으로 (목소리 되면 터치 조작 없음)
+  // 버튼으로 플레이하는 건 막음 (마이크 필수). 버튼 모드는 마이크를 원래 못 쓰는 아티팩트 버전에만 남김
 
   function nightIntro() { if (track.night) flash('밤이에요! 소리 내면 깜깜해져', 2.2); }
   function startPlay() {
