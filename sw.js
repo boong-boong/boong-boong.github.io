@@ -2,7 +2,7 @@
 // - 설치할 때 핵심 파일을 미리 저장 (첫 방문에 설치해도 오프라인으로 열림)
 // - 인터넷 되면 항상 새 버전 (브라우저 HTTP 캐시도 건너뜀 → 배포 직후 옛/새 파일이 섞이지 않게)
 // - 인터넷이 느리면 4초 뒤 저장해 둔 것으로
-const CACHE = 'boongboong-v4';
+const CACHE = 'boongboong-v5';
 const CORE = [
   './', 'index.html', 'style.css', 'manifest.webmanifest',
   'js/net-config.js', 'js/audio.js', 'js/sfx.js', 'js/track.js', 'js/stages-more.js', 'js/draw.js',

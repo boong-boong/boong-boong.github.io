@@ -465,7 +465,7 @@
       ui.roomInfo.innerHTML = '';
       const a = document.createElement('div'); a.append('방 '); const b = document.createElement('b'); b.textContent = Net.code; a.append(b);
       const stN = (m) => ((m.stage ?? 0) + 1) + '번';
-      const stLabel = (m) => (m.st === 'calib' ? '보정 중' : m.st === 'title' ? '처음 화면' : m.st === 'arrived' ? '도착 · ' + stN(m) : '달리는 중 · ' + stN(m));
+      const stLabel = (m) => (m.st === 'calib' ? '엔진 조정 중' : m.st === 'title' ? '처음 화면' : m.st === 'arrived' ? '도착 · ' + stN(m) : '달리는 중 · ' + stN(m));
       const c = document.createElement('div'); c.className = 'roomList';
       Net.members.forEach((m) => {
         const row = document.createElement('div');
@@ -578,7 +578,7 @@
       if (d > 0) A.cal.thrOn += d;
       show(ui.calib, false);
       startPlay();
-      flash('지난번 보정을 써요\n「보정」으로 다시', 2.4);
+      flash('지난번 엔진 조정 그대로\n바꾸려면 「엔진 조정」', 2.4);
       if (pendingStart) { const ps = pendingStart; pendingStart = null; beginCount(ps.stage, Math.max(1500, ps.at - performance.now())); }
       return;
     }
@@ -595,7 +595,7 @@
     } else {
       if (!c.done) { c.done = true; c.ok = A.applyCalibration({ boong: c.boong, kkiik: c.kkiik }); calibrated = true; if (c.ok) store.set('cal', A.exportCal()); }
       text = '좋아!';
-      ui.calibSub.textContent = c.ok ? '' : '소리가 잘 안 들렸어요\n「보정」으로 다시 해도 돼요';
+      ui.calibSub.textContent = c.ok ? '' : '소리가 잘 안 들렸어요\n「엔진 조정」을 다시 해도 돼요';
       if (c.t > t3 + CALIB.ok + (c.ok ? 0 : 1.5)) {
         show(ui.calib, false);
         ui.calibSub.textContent = '';
