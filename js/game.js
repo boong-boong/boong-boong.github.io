@@ -750,9 +750,10 @@
       const k = Math.min(1, inten);
       let tgt = P.VMAX * (0.35 + 0.4 * k + 0.25 * Math.min(1, holdT / 2)) * (onGrass ? 0.4 : 1);
       let acc = (260 + 220 * k) * (onGrass ? 0.6 : 1);
-      // 진흙: 크게 붕 할수록 빨리 빠져나옴
-      if (onMud) { tgt = P.VMAX * (0.08 + 0.5 * Math.min(1.4, inten)); acc *= 0.5; }
-      vf = vf < tgt ? Math.min(tgt, vf + acc * dt) : Math.max(tgt, vf - (onMud ? 260 : 90) * dt);
+      // 진흙: 평소 붕으론 기어가고(약 115), 크게 붕!! 해야 빠져나옴(최대 약 215). 작은 붕은 거의 못 감
+      if (onMud) { tgt = P.VMAX * (0.03 + 0.55 * Math.max(0, Math.min(1.4, inten) - 0.6)); acc *= 0.45; }
+      // 진흙에 빠르게 들어와도 관성으로 미끄러져 지나가지 않게 세게 붙잡음
+      vf = vf < tgt ? Math.min(tgt, vf + acc * dt) : Math.max(tgt, vf - (onMud ? 300 + vf * 2.5 : 90) * dt);
     } else if (type === 'kkiik') {
       car.coastV0 = -1;
       vf = Math.max(0, vf - P.DRIFT_DECEL * (onMud ? 2 : 1) * dt);
