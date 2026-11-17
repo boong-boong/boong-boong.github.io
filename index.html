@@ -63,27 +63,33 @@
 
     <!-- 시작 화면: 스테이지 고르고 시작. 꾸미기·친구랑·놀이 방법은 따로 창으로 -->
     <div id="title" class="screen">
-      <div class="logo">붕붕</div>
-      <div class="sub">입으로 운전해요</div>
-      <div class="stagePick">
-        <button id="stPrev" class="round big2" type="button" aria-label="이전 스테이지">◀</button>
-        <div id="stages" class="stInfo">
-          <div id="stTier" class="stTier"></div>
-          <div id="stName" class="stName"></div>
-          <div id="stBest" class="stBest"></div>
-          <div class="stHint">눌러서 전체 보기</div>
+      <div class="titleTop">
+        <div class="logo">붕붕</div>
+        <div class="sub">입으로 운전해요</div>
+      </div>
+      <div class="titleMid">
+        <div class="stagePick">
+          <button id="stPrev" class="round big2" type="button" aria-label="이전 스테이지">◀</button>
+          <div id="stages" class="stInfo">
+            <div id="stTier" class="stTier"></div>
+            <div id="stName" class="stName"></div>
+            <div id="stBest" class="stBest"></div>
+            <div class="stHint">눌러서 전체 보기</div>
+          </div>
+          <button id="stNext" class="round big2" type="button" aria-label="다음 스테이지">▶</button>
         </div>
-        <button id="stNext" class="round big2" type="button" aria-label="다음 스테이지">▶</button>
+        <div id="roomLine" class="roomLine hidden"></div>
+        <div id="titleMsg" class="msg"></div>
       </div>
-      <button id="startBtn" class="big" type="button">시작</button>
-      <div class="menuRow">
-        <button id="decoBtn" class="menuBtn" type="button">꾸미기</button>
-        <button id="roomBtn" class="menuBtn" type="button">친구랑</button>
-        <button id="helpBtn" class="menuBtn" type="button">놀이 방법</button>
+      <div class="titleBottom">
+        <button id="startBtn" class="big" type="button">시작</button>
+        <div class="menuRow">
+          <button id="decoBtn" class="menuBtn" type="button">꾸미기</button>
+          <button id="roomBtn" class="menuBtn" type="button">친구랑</button>
+          <button id="helpBtn" class="menuBtn" type="button">놀이 방법</button>
+        </div>
+        <button id="installBtn" class="menuBtn install hidden" type="button">앱으로 설치</button>
       </div>
-      <button id="installBtn" class="menuBtn install hidden" type="button">앱으로 설치</button>
-      <div id="roomLine" class="roomLine hidden"></div>
-      <div id="titleMsg" class="msg"></div>
     </div>
 
     <!-- 스테이지 한눈에 고르기 -->
