@@ -135,7 +135,10 @@
 
     // 끊긴 길: [시작 s, 길이]. 바로 앞 80px이 점프대. 끊긴 구간 점은 gap 표시(길로 안 침)
     const gaps = (def.gaps || []).map(([g0, len]) => ({ s0: g0, s1: g0 + len, ramp0: g0 - 80 }));
-    pts.forEach((p) => { p.gap = gaps.some((gp) => p.s > gp.s0 + 1 && p.s < gp.s1 - 1); });
+    pts.forEach((p) => {
+      p.gap = gaps.some((gp) => p.s > gp.s0 + 1 && p.s < gp.s1 - 1);
+      p.nearGap = gaps.some((gp) => p.s > gp.s0 - 130 && p.s < gp.s1 + 130);
+    });
     // 쉿 구간: [시작 s, 길이, 곰 위치(-1 왼쪽 / 1 오른쪽)]
     const quiet = (def.quiet || []).map(([q0, len, side]) => {
       const p = pointAtPts(pts, q0 + len / 2), rv = right(p.h), sd = side || 1;
@@ -232,6 +235,9 @@
       if (a.gap || b.gap) continue;                 // 끊긴 구간은 길이 아님
       if (Math.abs(a.x - x) > best + 20 && Math.abs(b.x - x) > best + 20) continue;
       const r = segProj(a.x, a.y, b.x, b.y, x, y);
+      // 끊긴 구간 근처는 끝을 반듯하게: 선분 위에 수직으로 있을 때만 길로 침
+      // (둥근 끝이 틈 안으로 100px 넘게 튀어나와 점프가 너무 쉬웠음)
+      if ((a.nearGap || b.nearGap) && (r.t <= 0 || r.t >= 1)) continue;
       if (r.d < best) best = r.d;
     }
     return best;

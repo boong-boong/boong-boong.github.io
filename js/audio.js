@@ -215,7 +215,7 @@
     else {
       out.silentT = 0;
       out.holdT += dt;
-      if (keys.boong || keys.kkiik) out.intensity = 1;
+      if (keys.boong || keys.kkiik) out.intensity = keys.power || 1;   // 테스트용: 키보드 붕 세기
       else {
         const span = Math.max(6, cal.boongDb - cal.thrOn);
         out.intensity = Math.max(0.15, Math.min(1.4, (out.db - cal.thrOn) / span));

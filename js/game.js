@@ -159,6 +159,8 @@
     });
     track.quiet.forEach((q) => (q.noise = 0));
     stuckT = 0; stuckS = gs;     // 다시 시작했으니 갇힘 판단도 새로
+    // 다시 시작한 곳보다 앞에 있는 번개는 다시 생김 (번개 먹고 넘는 큰 점프를 다시 할 수 있게). 별은 그대로
+    track.items.forEach((it) => { if (it.kind === 'bolt' && it.s > gs - 5) it.taken = false; });
   }
   const curPts = () => (car.pi ? track.branch.pts : track.pts);
   const curTurns = () => (car.pi ? track.branch.turns : track.turns);
@@ -726,7 +728,9 @@
       } else if (car.s > Bk.sA + 450 || car.s < Bk.sA - 150) car.fork = false;
     }
     // 점프대에서 쓸 "방금 얼마나 크게 붕 했나" (0.7초쯤 남음)
-    car.peakI = Math.max(type === 'boong' ? Math.min(1.4, inten) : 0, car.peakI - dt * 1.5);
+    // 버튼 모드는 소리 크기가 없으니 붕 버튼 = "좀 크게"(1.25)로 침
+    const jumpI = mode === 'buttons' ? 1.25 : Math.min(1.4, inten);
+    car.peakI = Math.max(type === 'boong' ? jumpI : 0, car.peakI - dt * 1.5);
     if (car.air) { stepAir(dt, type); return; }
     const surf = surfAt();
     const onIce = surf === 'ice', onMud = surf === 'mud';
@@ -826,9 +830,10 @@
     if (car.zone === 'road') { car.lastRoadS = car.s; car.lastRoad = { pi: car.pi, ls: car.ls }; }
 
     // 점프대 끝을 지나면 날아오름: 방금 낸 붕이 클수록 오래(멀리)
-    if (state === 'play' && car.pi === 0 && car.zone !== 'void') {
+    // (점프대를 타고 온 차는 길 판정과 상관없이 이륙: 끝이 반듯해져서 마지막 순간엔 이미 길 밖으로 잡힘)
+    if (state === 'play' && car.pi === 0) {
       for (const g of track.gaps) {
-        if (prevS < g.s0 - 2 && car.s >= g.s0 - 2) { takeOff(); return; }
+        if (prevS >= g.ramp0 - 40 && prevS < g.s0 - 6 && car.s >= g.s0 - 6) { takeOff(); return; }
       }
     }
 
@@ -875,9 +880,12 @@
   }
 
   function takeOff() {
-    const I = car.peakI;
-    const T_ = 0.3 + 0.5 * Math.min(1.4, I);
-    car.air = { t: 0, T: T_, H: 30 + 40 * I };
+    // 점프 힘: 평소 붕(세기 1)은 짧게, 크게 붕!!(1.3~1.4) 해야 멀리
+    //   체공 = 0.32 + 0.48 × J,  J = (세기 − 0.9) / 0.4  (0 ~ 1.2)
+    //   최고 속도 460 기준: 세기 1 → 약 200px, 1.2 → 약 310px, 1.4 → 약 410px
+    const I = car.peakI, J = Math.max(0, Math.min(1.2, (I - 0.9) / 0.4));
+    const T_ = 0.32 + 0.48 * J;
+    car.air = { t: 0, T: T_, H: 25 + 45 * J };
     // 점프대가 차를 길 방향으로 60% 바로잡아 줌
     const th = T.pointAt(track, car.s).h, v = Math.hypot(car.vx, car.vy);
     const va = th + wrap(Math.atan2(car.vx, -car.vy) - th) * 0.4;
@@ -905,7 +913,7 @@
       shake = Math.min(0.3, shake + 0.15);
       Sfx.bump();
       const d = T.nearestDist(track, car.x, car.y);
-      if (d > BB.ROAD_W / 2 + BB.GRASS_W + 4) { car.fallT = 0; Sfx.fall(); return; }
+      if (d > BB.ROAD_W / 2 + BB.GRASS_W + 4) { car.fallT = 0; Sfx.fall(); flash(mode === 'buttons' ? '번개 먹고 다시!' : '더 크게 붕!!', 1.6); return; }
       jumpOK++;
       for (let i = 0; i < 6; i++) puff(-6, (Math.random() - 0.5) * 30, '#ffffff', 0.5, 7);
     }
@@ -980,7 +988,12 @@
     for (let k = 0; k < 8; k++) {
       const before = s;
       // 끊긴 길 근처: 점프대 한참 앞에서 (다시 속도 붙여서 뛰게)
-      for (const g of track.gaps) if (s > g.s0 - 450 && s < g.s1 + 40) s = g.s0 - 520;
+      for (const g of track.gaps) if (s > g.s0 - 450 && s < g.s1 + 40) {
+        s = g.s0 - 520;
+        // 이 점프에 쓰는 번개가 있으면 그보다 앞에서 (번개 먹고 다시 뛰게)
+        const bolt = track.items.find((it) => it.kind === 'bolt' && !it.onBranch && it.s < g.s0 && it.s > g.s0 - 900);
+        if (bolt) s = Math.min(s, bolt.s - 120);
+      }
       for (const tn of track.turns) if (tn.deg >= 120 && s > tn.s0 - 120 && s < tn.s1 + 40) s = tn.s0 - 260;
       for (const q of track.quiet) if (s > q.s0 - 60 && s < q.s1) s = q.s0 - 600;
       if (s === before) break;
@@ -1117,6 +1130,24 @@
     g.strokeStyle = '#ffffff'; g.lineWidth = W + 8; g.stroke(trackPath);
     g.strokeStyle = '#b9b3c6'; g.lineWidth = W; g.stroke(trackPath);
 
+    // 끊긴 길: 양쪽 끝을 반듯하게 (둥근 끝을 하늘색으로 덮음)
+    for (const gp of track.gaps) {
+      const L = BB.ROAD_W / 2 + BB.GRASS_W + 16;
+      const pts = [];
+      for (let ss = gp.s0; ss <= gp.s1 + 0.1; ss += 8) pts.push(T.pointAt(track, Math.min(ss, gp.s1)));
+      g.beginPath();
+      pts.forEach((p, k) => { const r = right(p.h); k ? g.lineTo(p.x + r.x * L, p.y + r.y * L) : g.moveTo(p.x + r.x * L, p.y + r.y * L); });
+      for (let k = pts.length - 1; k >= 0; k--) { const p = pts[k], r = right(p.h); g.lineTo(p.x - r.x * L, p.y - r.y * L); }
+      g.closePath();
+      g.fillStyle = track.night ? '#1d2252' : '#bfe6ff'; g.fill();
+      // 절벽 그림자 한 줄
+      for (const ss of [gp.s0, gp.s1]) {
+        const p = T.pointAt(track, ss), r = right(p.h), w = BB.ROAD_W / 2 + BB.GRASS_W;
+        g.strokeStyle = 'rgba(40,90,140,.35)'; g.lineWidth = 6; g.lineCap = 'butt';
+        g.beginPath(); g.moveTo(p.x - r.x * w, p.y - r.y * w); g.lineTo(p.x + r.x * w, p.y + r.y * w); g.stroke();
+      }
+      g.lineCap = 'round';
+    }
     // 쉿 구간 곰이 사는 작은 섬
     for (const q of track.quiet) {
       g.fillStyle = '#4e9a43'; g.beginPath(); g.arc(q.x, q.y, 52, 0, 7); g.fill();
