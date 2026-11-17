@@ -77,7 +77,7 @@
   async function joinInner(code, name, color) {
     code = cleanCode(code);
     if (code.length !== 4) return { ok: false, why: '방 코드는 4글자예요' };
-    if (!window.supabase || !BB.NET_CONFIG) return { ok: false, why: '연결 준비가 안 됐어요 (인터넷 확인)' };
+    if (!window.supabase || !BB.NET_CONFIG) return { ok: false, why: '연결 준비가 안 됐어요\n인터넷을 확인해 줘' };
     await leave();
     me = { name: str(name, 12) || '친구', color, ready: voiceReady };
     if (!client) client = window.supabase.createClient(BB.NET_CONFIG.url, BB.NET_CONFIG.anonKey, { realtime: { params: { eventsPerSecond: 40 } } });

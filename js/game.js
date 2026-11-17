@@ -266,7 +266,7 @@
       b.type = 'button'; b.className = 'hatBtn' + (h.id === hat ? ' sel' : '') + (open ? '' : ' locked');
       b.textContent = open ? h.name : h.name + ' ★' + h.need;
       b.onclick = () => {
-        if (!open) { ui.decoMsg.textContent = '별 ' + h.need + '개를 모으면 열려요 (지금 ' + have + '개)'; return; }
+        if (!open) { ui.decoMsg.textContent = '별 ' + h.need + '개를 모으면 열려요\n(지금 ' + have + '개)'; return; }
         ui.decoMsg.textContent = '';
         hat = h.id; store.set('hat', hat); buildTitle();
       };
@@ -318,7 +318,7 @@
   let installEvt = null;
   function renderInstall() { show($('installBtn'), !BB.ARTIFACT && !standalone() && (!!installEvt || isIos || matchMedia('(pointer: coarse)').matches)); }
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; renderInstall(); });
-  window.addEventListener('appinstalled', () => { installEvt = null; renderInstall(); ui.titleMsg.textContent = '설치했어요! 홈 화면의 붕붕 아이콘으로 열어 봐'; });
+  window.addEventListener('appinstalled', () => { installEvt = null; renderInstall(); ui.titleMsg.textContent = '설치했어요!\n홈 화면의 붕붕 아이콘으로 열어 봐'; });
   $('installBtn').addEventListener('click', async () => {
     if (installEvt) {
       const e = installEvt; installEvt = null;
@@ -334,7 +334,7 @@
     if (navigator.share) {
       try { await navigator.share(data); return; } catch (e) { if (e && e.name === 'AbortError') return; }
     }
-    try { await navigator.clipboard.writeText(url); ui.titleMsg.textContent = '링크를 복사했어요! 친구에게 붙여 넣어 보내 줘'; }
+    try { await navigator.clipboard.writeText(url); ui.titleMsg.textContent = '링크를 복사했어요!\n친구에게 붙여 넣어 보내 줘'; }
     catch (e) { ui.titleMsg.textContent = url; }
   });
   if (BB.ARTIFACT) show($('shareBtn'), false);
@@ -353,7 +353,7 @@
     if (navigator.share) {
       try { await navigator.share(data); return; } catch (e) { if (e && e.name === 'AbortError') return; }
     }
-    try { await navigator.clipboard.writeText(url); ui.titleMsg.textContent = '링크를 복사했어요! 친구에게 붙여 넣어 보내 줘'; }
+    try { await navigator.clipboard.writeText(url); ui.titleMsg.textContent = '링크를 복사했어요!\n친구에게 붙여 넣어 보내 줘'; }
     catch (e) { ui.titleMsg.textContent = url; }
   });
   if (BB.ARTIFACT) show($('shareBtn'), false);
@@ -405,10 +405,10 @@
     if (!micOk && !BB.ARTIFACT && !forceButtons) {
       const android = /android/i.test(navigator.userAgent);
       ui.titleMsg.textContent = !navigator.mediaDevices
-        ? '마이크를 쓸 수 없는 주소예요. https://boong-boong.github.io 로 열어 주세요'
-        : isIos ? '입으로 하는 게임이라 마이크가 있어야 해요. 설정 → Safari(또는 붕붕 앱) → 마이크 → 허용, 그리고 다시 「시작」'
-        : android ? '입으로 하는 게임이라 마이크가 있어야 해요. 주소창 왼쪽 자물쇠 → 권한 → 마이크 허용, 그리고 다시 「시작」'
-        : '입으로 하는 게임이라 마이크가 있어야 해요. 주소창의 마이크 아이콘에서 허용하고 다시 「시작」';
+        ? '마이크를 쓸 수 없는 주소예요\nboong-boong.github.io 로 열어 주세요'
+        : isIos ? '입으로 하는 게임이라\n마이크가 있어야 해요\n\n설정 → Safari(또는 붕붕 앱)\n→ 마이크 → 허용 후 다시 「시작」'
+        : android ? '입으로 하는 게임이라\n마이크가 있어야 해요\n\n주소창 왼쪽 자물쇠 → 권한\n→ 마이크 허용 후 다시 「시작」'
+        : '입으로 하는 게임이라\n마이크가 있어야 해요\n\n주소창의 마이크 아이콘에서\n허용하고 다시 「시작」';
       return;
     }
     try { if (navigator.wakeLock) navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
@@ -430,7 +430,7 @@
 
   // 버튼으로 플레이하는 건 막음 (마이크 필수). 버튼 모드는 마이크를 원래 못 쓰는 아티팩트 버전에만 남김
 
-  function nightIntro() { if (track.night) flash('밤이에요! 소리 내면 깜깜해져', 2.2); }
+  function nightIntro() { if (track.night) flash('밤이에요!\n소리 내면 깜깜해져', 2.2); }
   function startPlay() {
     openSheet(null);
     show(ui.title, false); show(ui.calib, false); show(ui.arrive, false);
@@ -488,7 +488,7 @@
   let pendingStart = null;   // 보정 중에 받은 같이 출발
   Net.onStart = ({ stage, wait }) => {
     stage = Math.min(stage, BB.STAGES.length - 1);
-    if (!started) { ui.roomMsg.textContent = ui.titleMsg.textContent = '친구가 출발해요! 「시작」을 눌러 줘'; stageIdx = stage; loadStage(stage); buildTitle(); return; }
+    if (!started) { ui.roomMsg.textContent = ui.titleMsg.textContent = '친구가 출발해요!\n「시작」을 눌러 줘'; stageIdx = stage; loadStage(stage); buildTitle(); return; }
     if (state === 'calib') { pendingStart = { stage, at: performance.now() + wait }; return; }
     beginCount(stage, wait);
   };
@@ -511,9 +511,9 @@
     ui.roomMsg.textContent = '연결하는 중…';
     const r = await Net.join(code, nickVal(), color);
     joining = false; ui.roomMake.disabled = ui.roomJoin.disabled = false;
-    ui.roomMsg.textContent = r.ok ? '친구에게 링크를 보내 줘. 다 모이면 게임 안에서 「같이 출발」!' : r.why;
+    ui.roomMsg.textContent = r.ok ? '친구에게 링크를 보내 줘\n다 모이면 게임 안에서 「같이 출발」!' : r.why;
     // 친구 방에 들어간 거면 창을 닫고 바로 「시작」 누를 수 있게
-    if (r.ok && joinedByCode && state === 'title') { openSheet(null); ui.titleMsg.textContent = '방 ' + Net.code + '에 들어왔어요! 「시작」을 눌러 줘'; }
+    if (r.ok && joinedByCode && state === 'title') { openSheet(null); ui.titleMsg.textContent = '방 ' + Net.code + '에 들어왔어요!\n「시작」을 눌러 줘'; }
     renderRoom();
     if (r.ok) setupVoice();
   }
@@ -534,7 +534,7 @@
   if (BB.ARTIFACT) { show(ui.roomBox, false); show($('roomBtn'), false); }   // 아티팩트에선 아티팩트 자체 같이 달리기 사용
   else {
     const m = location.hash.match(/^#room-([A-Za-z0-9]{4})$/);
-    if (m) { ui.roomCode.value = m[1].toUpperCase(); ui.roomMsg.textContent = '친구 방 ' + m[1].toUpperCase() + ' — 이름 쓰고 「들어가기」'; openSheet('roomSheet'); }
+    if (m) { ui.roomCode.value = m[1].toUpperCase(); ui.roomMsg.textContent = '친구 방 ' + m[1].toUpperCase() + '\n이름 쓰고 「들어가기」'; openSheet('roomSheet'); }
   }
 
   function goTitle() {
@@ -578,7 +578,7 @@
       if (d > 0) A.cal.thrOn += d;
       show(ui.calib, false);
       startPlay();
-      flash('지난번 보정을 써요 · 「보정」으로 다시', 2.4);
+      flash('지난번 보정을 써요\n「보정」으로 다시', 2.4);
       if (pendingStart) { const ps = pendingStart; pendingStart = null; beginCount(ps.stage, Math.max(1500, ps.at - performance.now())); }
       return;
     }
@@ -595,7 +595,7 @@
     } else {
       if (!c.done) { c.done = true; c.ok = A.applyCalibration({ boong: c.boong, kkiik: c.kkiik }); calibrated = true; if (c.ok) store.set('cal', A.exportCal()); }
       text = '좋아!';
-      ui.calibSub.textContent = c.ok ? '' : '소리가 잘 안 들렸어요. 「보정」을 눌러 다시 해도 돼요';
+      ui.calibSub.textContent = c.ok ? '' : '소리가 잘 안 들렸어요\n「보정」으로 다시 해도 돼요';
       if (c.t > t3 + CALIB.ok + (c.ok ? 0 : 1.5)) {
         show(ui.calib, false);
         ui.calibSub.textContent = '';
@@ -1494,7 +1494,7 @@
     if (state === 'count') {
       countT -= dt;
       // 같이 출발: 시계는 "붕!" 신호부터 (늦게 출발하면 그만큼 기록에 들어가게)
-      if (countT <= 0) { state = 'play'; running = true; flash(track.night ? '붕! 소리 내면 깜깜해져' : '붕!', track.night ? 1.6 : 0.7); if (mode === 'mic') A.startRecording(); renderRoom(); }
+      if (countT <= 0) { state = 'play'; running = true; flash(track.night ? '붕!\n소리 내면 깜깜해져' : '붕!', track.night ? 1.6 : 0.7); if (mode === 'mic') A.startRecording(); renderRoom(); }
     }
     if (state === 'play' || state === 'arrived') stepCar(dt);
     if (state === 'play') {

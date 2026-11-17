@@ -290,3 +290,10 @@ button.round.icon.horn svg .fill { fill: #e8673c; }
 
 /* 시작 화면 안내 문구: 길 그림 위에서도 잘 읽히게 */
 #titleMsg:not(:empty) { background: rgba(255,255,255,.92); border-radius: 14px; padding: 8px 14px; box-shadow: 0 2px 0 rgba(0,0,0,.1); }
+
+/* ── 화면 글 가독성 규칙 (CLAUDE.md 참고) ──
+   단어 중간에서 안 끊고, 줄 길이는 고르게, 코드의 \n 은 그대로 줄바꿈 */
+body { word-break: keep-all; overflow-wrap: break-word; }
+.msg, #bubble, .calibText, .tip, .sheetCard p, .installSteps p, .stats, .arriveText { text-wrap: balance; }
+.msg, #bubble, .calibText, #roomInfo { white-space: pre-line; }
+.nw { white-space: nowrap; }
