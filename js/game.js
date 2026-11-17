@@ -1483,7 +1483,8 @@
 
     if (state === 'count') {
       countT -= dt;
-      if (countT <= 0) { state = 'play'; flash(track.night ? '붕! 소리 내면 깜깜해져' : '붕!', track.night ? 1.6 : 0.7); if (mode === 'mic') A.startRecording(); renderRoom(); }
+      // 같이 출발: 시계는 "붕!" 신호부터 (늦게 출발하면 그만큼 기록에 들어가게)
+      if (countT <= 0) { state = 'play'; running = true; flash(track.night ? '붕! 소리 내면 깜깜해져' : '붕!', track.night ? 1.6 : 0.7); if (mode === 'mic') A.startRecording(); renderRoom(); }
     }
     if (state === 'play' || state === 'arrived') stepCar(dt);
     if (state === 'play') {
