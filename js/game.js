@@ -740,7 +740,10 @@
     let vl = car.vx * r.x + car.vy * r.y;
 
     // 엔진
-    if (vf < 0) vf = Math.min(0, vf + 300 * dt);           // 벽에 튕겨 뒤로 밀린 것 회복
+    // 벽에 튕겨 진짜로 뒤로 밀렸을 때만 먼저 회복. 아주 작은 뒷걸음(끼익으로 멈춘 뒤 남는 0.0001 같은 것)은 0으로 보고
+    // 바로 엔진이 먹게 (예전엔 이게 매 프레임 다시 생겨서 붕을 해도 연기만 나고 안 움직였음)
+    if (vf < 0 && vf > -5) vf = 0;
+    if (vf < 0) vf = Math.min(0, vf + 300 * dt);
     else if (state === 'arrived') vf = Math.max(0, vf - Math.max(520, (vf * vf) / 300) * dt);   // 도착: 길 끝(230px) 전에 멈추게
     else if (type === 'boong') {
       car.coastV0 = -1;
@@ -805,6 +808,7 @@
       car.vy = f.y * nf + r.y * nl2;
     }
 
+    if (Math.hypot(car.vx, car.vy) < 0.5 && type !== 'boong' && !(car.turbo > 0)) { car.vx = 0; car.vy = 0; }
     car.x += car.vx * dt; car.y += car.vy * dt;
 
     collideWalls();
