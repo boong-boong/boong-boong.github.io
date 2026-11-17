@@ -614,11 +614,10 @@
   On.onHorn = (key) => { peerHorn.set(key, 0.9); Sfx.horn(); };
 
   // ---------- 시점 ----------
-  // 시점 버튼 아이콘: 지금 위에서 보는 중이면 "뒤에서 보기(3D 상자)", 뒤에서 보는 중이면 "위에서 보기(지도)"
-  const ICON_3D = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>';
-  const ICON_TOP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>';
+  // 시점 바꾸기 아이콘 (카메라 + 둥근 화살표), 위/뒤 어느 쪽이든 같은 아이콘
+  const ICON_VIEW = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2.2l1.6-2h7.4l1.6 2h2.2A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/><path d="M15.2 11.3a3.4 3.4 0 0 0-6-0.6M8.8 14.7a3.4 3.4 0 0 0 6 0.6"/><path d="M9.2 9.2v1.6h1.6M14.8 16.8v-1.6h-1.6"/></svg>';
   function applyView() {
-    ui.view.innerHTML = view === '3d' ? ICON_TOP : ICON_3D;
+    if (!ui.view.firstChild) ui.view.innerHTML = ICON_VIEW;
     ui.view.setAttribute('aria-label', view === '3d' ? '위에서 보기' : '뒤에서 보기');
   }
   ui.view.addEventListener('click', () => { view = view === '3d' ? '2d' : '3d'; store.set('view', view); applyView(); resize(); });
