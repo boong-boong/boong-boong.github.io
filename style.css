@@ -280,7 +280,7 @@ button.round.icon { display: grid; place-items: center; }
 button.round.icon svg { width: 24px; height: 24px; fill: none; stroke: #3a3350; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 button.round.icon.horn svg { stroke: #e8673c; }
 button.round.icon.horn svg .fill { fill: #e8673c; }
-#recalBtn svg rect { fill: #3a3350; stroke: none; }
+#recalBtn svg .knob { fill: #fff; }
 
 /* 시작 화면 오른쪽 위: 앱 설치 · 공유 */
 .titleCorner { position: absolute; right: 12px; top: calc(12px + env(safe-area-inset-top)); display: flex; gap: 8px; z-index: 1; }
