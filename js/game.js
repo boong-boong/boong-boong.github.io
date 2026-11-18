@@ -732,6 +732,26 @@
   ui.home.addEventListener('click', goTitle);
   $('arriveHome').addEventListener('click', goTitle);
 
+  // ---------- 붕붕 끄기 ----------
+  // 방에서 나가고 마이크·소리를 모두 놓은 뒤 창 닫기를 시도. 폰이 막으면 닫는 방법 안내
+  $('exitBtn').addEventListener('click', async () => {
+    state = 'off';
+    stopPlayback(); pendingStart = null;
+    try { await Net.leave(); } catch (e) {}
+    A.shutdown();
+    try { Sfx.engine(0, false); } catch (e) {}
+    try { document.exitFullscreen && document.fullscreenElement && document.exitFullscreen(); } catch (e) {}
+    openSheet(null);
+    show(ui.title, false); show(ui.hud, false); show(ui.arrive, false); show(ui.calib, false); setBubble('', '');
+    try { window.close(); } catch (e) {}
+    const android = /android/i.test(navigator.userAgent);
+    $('offTip').textContent = isIos ? (standalone() ? '화면 아래에서 위로 쓸어 올려\n붕붕을 닫아 줘' : '이 탭을 닫아 줘')
+      : android ? (standalone() ? '최근 앱 버튼을 누르고\n붕붕을 위로 밀어 닫아 줘' : '이 탭을 닫아 줘')
+      : '이 창을 닫아 줘';
+    setTimeout(() => show($('offScreen'), true), 300);
+  });
+  $('offAgain').addEventListener('click', () => location.reload());
+
   // ---------- 보정 (10초) ----------
   let calib = null;
   // quick: 저장된 보정을 쓰되 주변 소음만 1초 다시 재기
@@ -1703,6 +1723,7 @@
 
   let last = performance.now();
   function frame(now) {
+    if (state === 'off') return;   // 붕붕을 껐으면 그리기도 멈춤
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     if (dbg.paused) { requestAnimationFrame(frame); return; }

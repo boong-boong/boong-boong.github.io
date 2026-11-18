@@ -58,7 +58,8 @@
     const tr = stream.getAudioTracks()[0];
     if (tr) tr.addEventListener('ended', () => { if (BB.Audio.onLost) BB.Audio.onLost(); });
     // iOS: 이어폰 연결이 바뀌면 소리 엔진이 'interrupted'로 멈추기도 함 → 다시 깨우기
-    ctx.onstatechange = () => { if (ctx.state === 'interrupted' || ctx.state === 'suspended') ctx.resume().catch(() => {}); };
+    const c0 = ctx;
+    c0.onstatechange = () => { if (c0 === ctx && (c0.state === 'interrupted' || c0.state === 'suspended')) c0.resume().catch(() => {}); };
     src = ctx.createMediaStreamSource(stream);
     analyser = ctx.createAnalyser();
     analyser.fftSize = 2048;
@@ -78,6 +79,13 @@
   // 반향 제거 설정을 바꿔 마이크 다시 열기 (보정값·소음 스펙트럼은 유지)
   let reopening = null;
   // force: 설정이 같아도 다시 열기 (이어폰을 꽂거나 빼서 마이크가 바뀌었을 때)
+  // 앱 끄기: 마이크와 소리 엔진을 완전히 놓아 줌
+  function shutdown() {
+    stopRecording(true);
+    try { if (stream) stream.getTracks().forEach((t) => t.stop()); } catch (e) {}
+    try { if (ctx) { ctx.onstatechange = null; ctx.close(); } } catch (e) {}
+    stream = null; ctx = null; out.ready = false;
+  }
   async function reopen(aec, force) {
     if (reopening) await reopening;              // 이미 다시 여는 중이면 끝날 때까지
     if (!stream || (!force && aecOn === !!aec)) return stream;
@@ -288,5 +296,5 @@
     return Math.max(0, Math.min(1, (d - lo) / Math.max(10, hi - lo)));
   }
 
-  BB.Audio = { init, resume, reopen, setCross, micLabel, exportCal, importCal, stream: () => stream, aec: () => aecOn, ctx: () => ctx, hasMic: () => !!stream, startRecording, stopRecording, update, measure, captureNoiseFrame, setNoise, applyCalibration, cal, out, keys, pitchNorm, dbNorm };
+  BB.Audio = { shutdown, init, resume, reopen, setCross, micLabel, exportCal, importCal, stream: () => stream, aec: () => aecOn, ctx: () => ctx, hasMic: () => !!stream, startRecording, stopRecording, update, measure, captureNoiseFrame, setNoise, applyCalibration, cal, out, keys, pitchNorm, dbNorm };
 })();

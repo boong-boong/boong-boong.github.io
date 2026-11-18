@@ -382,3 +382,8 @@ button.round.bigIcon.go svg .fill { fill: #fff; }
 #hud.arrived .hudRight { display: none; }
 .arriveBtns { flex-wrap: nowrap; gap: 10px; }
 @media (max-width: 360px) { .arriveCard button.round.bigIcon { width: 50px; height: 50px; } .arriveCard button.round.bigIcon.go { width: 64px; height: 64px; } }
+
+/* 붕붕 끈 화면 */
+#offScreen { background: #bfe6ff; z-index: 8; }
+.offPower svg { width: 64px; height: 64px; fill: none; stroke: #b4adc4; stroke-width: 2; stroke-linecap: round; }
+.offText { font-size: 32px; color: #3a3350; }

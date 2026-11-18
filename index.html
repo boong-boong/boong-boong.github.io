@@ -75,6 +75,7 @@
       <div class="titleCorner">
         <button id="installBtn" class="round icon hidden" type="button" aria-label="앱으로 설치"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5"/><path d="M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/></svg></button>
         <button id="shareBtn" class="round icon" type="button" aria-label="앱 공유하기"><svg viewBox="0 0 24 24" aria-hidden="true"><circle class="dot" cx="18" cy="5.5" r="2.5"/><circle class="dot" cx="6" cy="12" r="2.5"/><circle class="dot" cx="18" cy="18.5" r="2.5"/><path d="M8.2 10.9l7.6-4.3M8.2 13.1l7.6 4.3"/></svg></button>
+        <button id="exitBtn" class="round icon" type="button" aria-label="붕붕 끄기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5V11"/><path d="M7 6.5a7.5 7.5 0 1 0 10 0"/></svg></button>
       </div>
       <div class="titleTop">
         <div class="logo">붕붕</div>
@@ -234,6 +235,14 @@
         </div>
         <div id="waitHost" class="msg hidden">방장을 기다려요</div>
       </div>
+    </div>
+
+    <!-- 붕붕 끄기 (앱을 스스로 닫을 수 없는 폰에서 보여 줌) -->
+    <div id="offScreen" class="screen hidden">
+      <div class="offPower"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5V11"/><path d="M7 6.5a7.5 7.5 0 1 0 10 0"/></svg></div>
+      <div class="offText">붕붕을 껐어요</div>
+      <div id="offTip" class="msg"></div>
+      <button id="offAgain" class="mid ghost" type="button">다시 켜기</button>
     </div>
 
     <!-- 가로 화면 경고 -->
