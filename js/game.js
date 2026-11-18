@@ -706,9 +706,12 @@
     renderEar(); setupVoice();
   });
   // 시험판: 주소 뒤에 ?test → 봇 친구 2명과 같이 (진짜 방 없이)
-  if (!BB.ARTIFACT && /[?&]test\b/.test(location.search)) {
-    Net.startBots(2, store.get('nick', '') || '나', color);
-    ui.titleMsg.textContent = '시험판: 봇 친구 2명이랑 같이\n「시작」을 눌러 줘';
+  // ?test=4 → 봇 4명 (나까지 5명)
+  const testM = !BB.ARTIFACT && location.search.match(/[?&]test(?:=(\d))?\b/);
+  if (testM) {
+    const nb = Math.max(1, Math.min(4, +(testM[1] || 2)));
+    Net.startBots(nb, store.get('nick', '') || '나', color);
+    ui.titleMsg.textContent = '시험판: 봇 친구 ' + nb + '명이랑 같이\n「시작」을 눌러 줘';
   }
   if (BB.ARTIFACT) { show(ui.roomBox, false); show($('roomBtn'), false); }   // 아티팩트에선 아티팩트 자체 같이 달리기 사용
   else {

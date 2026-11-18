@@ -173,13 +173,14 @@
   const BOT_DEF = [
     { id: 'bot-minji', name: '민지', color: '#4dabf7', skill: 0.66, lane: -24 },
     { id: 'bot-dasol', name: '다솔', color: '#51cf66', skill: 0.57, lane: 24 },
-    { id: 'bot-junho', name: '준호', color: '#b197fc', skill: 0.62, lane: 0 },
+    { id: 'bot-junho', name: '준호', color: '#b197fc', skill: 0.62, lane: -8 },
+    { id: 'bot-seoyeon', name: '서연', color: '#ffd43b', skill: 0.7, lane: 8 },
   ];
   function startBots(n, name, color) {
     if (N.on) return;
     N.on = true; N.test = true; N.code = 'TEST';
     me = { name: str(name, 12) || '나', color, ready: false, since: Date.now() };
-    bots = BOT_DEF.slice(0, Math.max(1, Math.min(3, n))).map((d, i) => ({ ...d, since: me.since + 1 + i, st: 'wait', s: 0, v: 0, ph: Math.random() * 6, x: 0, y: 0, h: 0 }));
+    bots = BOT_DEF.slice(0, Math.max(1, Math.min(4, n))).map((d, i) => ({ ...d, since: me.since + 1 + i, st: 'wait', s: 0, v: 0, ph: Math.random() * 6, x: 0, y: 0, h: 0 }));
     botsKnown();
     rebuildMembers(); changed();
   }
