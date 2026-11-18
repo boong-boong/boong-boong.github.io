@@ -41,7 +41,7 @@
         <div id="friendList" class="friendList hidden"></div>
       </div>
       <div class="hudRight">
-        <button id="homeBtn" class="round icon" type="button" aria-label="처음 화면"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14" fill="none"/></svg></button>
+        <button id="homeBtn" class="round icon" type="button" aria-label="처음 화면으로"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 11.5L12 4l8.5 7.5"/><path d="M6 10v10h4.5v-5.5h3V20H18V10"/></svg></button>
       </div>
       <!-- 게임 중 쓰는 버튼: 오른쪽 아래 세로 (경적이 맨 아래, 엄지 가까이) -->
       <div id="hudTools">
@@ -220,10 +220,14 @@
           <button id="specNext" class="round icon" type="button" aria-label="다음 친구 보기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
         </div>
         <div class="arriveText">도착</div>
-        <div id="arriveStats" class="stats"></div>
+        <!-- 내 기록 + 내 소리 듣기 (작은 버튼) -->
+        <div class="statRow">
+          <div id="arriveStats" class="stats"></div>
+          <button id="playbackBtn" class="round icon tog hidden" type="button" aria-label="내 소리 듣기"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M3.5 9.5h3L10 6v12l-3.5-3.5h-3z"/><path class="on" d="M13.5 9a4 4 0 0 1 0 6M16.5 6.5a7.5 7.5 0 0 1 0 11"/><rect class="fill off" x="14" y="8" width="7" height="8" rx="1.2"/></svg></button>
+        </div>
         <div id="board" class="board hidden"></div>
         <div class="row arriveBtns">
-          <button id="playbackBtn" class="round icon bigIcon tog hidden" type="button" aria-label="내 소리 듣기"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M3.5 9.5h3L10 6v12l-3.5-3.5h-3z"/><path class="on" d="M13.5 9a4 4 0 0 1 0 6M16.5 6.5a7.5 7.5 0 0 1 0 11"/><rect class="fill off" x="14" y="8" width="7" height="8" rx="1.2"/></svg></button>
+          <button id="arriveHome" class="round icon bigIcon" type="button" aria-label="처음 화면으로"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 11.5L12 4l8.5 7.5"/><path d="M6 10v10h4.5v-5.5h3V20H18V10"/></svg></button>
           <button id="retryBtn" class="round icon bigIcon" type="button" aria-label="다시"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19 4.5v4h-4"/></svg></button>
           <button id="listBtn" class="round icon bigIcon" type="button" aria-label="스테이지 고르기"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg></button>
           <button id="nextBtn" class="round icon bigIcon go" type="button" aria-label="다음 스테이지"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M5 5.5v13L14 12z"/><path class="fill" d="M12 5.5v13L21 12z"/></svg></button>

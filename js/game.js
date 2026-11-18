@@ -730,6 +730,7 @@
     renderRoom();
   }
   ui.home.addEventListener('click', goTitle);
+  $('arriveHome').addEventListener('click', goTitle);
 
   // ---------- 보정 (10초) ----------
   let calib = null;

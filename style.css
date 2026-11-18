@@ -374,3 +374,11 @@ button.round.bigIcon.go svg .fill { fill: #fff; }
 #hud.buttons #hudTools { bottom: calc(190px + env(safe-area-inset-bottom)); }
 /* 말풍선은 오른쪽 위 소리 막대를 피해서 왼쪽 공간 가운데에 */
 #bubble { left: calc(50% - 38px); max-width: calc(100% - 108px); }
+
+/* 도착 카드: 내 기록 옆 작은 「내 소리 듣기」, 버튼 줄 맨 앞 「처음 화면」 */
+.statRow { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.statRow #playbackBtn { width: 38px; height: 38px; background: #f1edf8; box-shadow: none; flex: none; }
+.statRow #playbackBtn svg { width: 22px; height: 22px; }
+#hud.arrived .hudRight { display: none; }
+.arriveBtns { flex-wrap: nowrap; gap: 10px; }
+@media (max-width: 360px) { .arriveCard button.round.bigIcon { width: 50px; height: 50px; } .arriveCard button.round.bigIcon.go { width: 64px; height: 64px; } }
