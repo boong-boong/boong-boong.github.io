@@ -1568,11 +1568,23 @@
   }
 
   // 소리 막대: 높이(낮음↔높음), 크기
+  // 오른쪽 아래 버튼 줄의 맨 위 (화면 좌표). 버튼이 숨었으면 마지막 값
+  let toolsTopV = 0, toolsT = 0;
+  function toolsTop() {
+    const now = performance.now();
+    if (now - toolsT > 300 || !toolsTopV) {
+      toolsT = now;
+      const r = $('hudTools').getBoundingClientRect(), f = canvas.getBoundingClientRect();
+      if (r.height > 0) toolsTopV = r.top - f.top;
+    }
+    return toolsTopV || ch * 0.62;
+  }
   function drawMeter() {
     const out = A.out, cal = A.cal;
-    // 오른쪽 위 메뉴 버튼 바로 아래 (오른쪽 아래는 경적 등 버튼 자리)
-    const w = 66, h = Math.round(Math.max(130, Math.min(200, ch * 0.3)));
-    const x = cw - w - 10, y = 62;
+    // 오른쪽 아래 버튼 줄(시점·엔진 조정·경적) 바로 위에 붙임
+    const top = toolsTop();
+    const w = 66, h = Math.round(Math.max(100, Math.min(200, ch * 0.3, top - 10 - 62 - 54)));
+    const x = cw - w - 10, y = Math.max(62, top - 10 - (h + 54));
     const col = out.type === 'boong' ? '#ff8a4c' : out.type === 'kkiik' ? '#2bb3d9' : '#b8b3c4';
 
     g.fillStyle = 'rgba(255,255,255,.62)'; D.rr(g, x, y, w, h + 54, 16); g.fill();
