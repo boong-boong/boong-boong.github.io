@@ -43,6 +43,9 @@
 
   // aec: 친구 목소리를 들을 때는 반향 제거를 켜서, 스피커로 나온 친구 소리가 내 차를 움직이지 않게
   let aecOn = false, src = null;
+  let cross = false;                     // 친구가 지금 소리 내는 중 (같은 방 소리·스피커 소리 막기)
+  function setCross(on) { cross = !!on; }
+  function micLabel() { const t = stream && stream.getAudioTracks()[0]; return (t && t.label) || ''; }
   async function init(opts) {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!ctx) ctx = new AC();
@@ -51,6 +54,11 @@
     stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: aecOn, noiseSuppression: false, autoGainControl: false },
     });
+    // 이어폰을 빼거나 블루투스가 끊기면 마이크 트랙이 끝나 버림 → 게임이 다시 열 수 있게 알림
+    const tr = stream.getAudioTracks()[0];
+    if (tr) tr.addEventListener('ended', () => { if (BB.Audio.onLost) BB.Audio.onLost(); });
+    // iOS: 이어폰 연결이 바뀌면 소리 엔진이 'interrupted'로 멈추기도 함 → 다시 깨우기
+    ctx.onstatechange = () => { if (ctx.state === 'interrupted' || ctx.state === 'suspended') ctx.resume().catch(() => {}); };
     src = ctx.createMediaStreamSource(stream);
     analyser = ctx.createAnalyser();
     analyser.fftSize = 2048;
@@ -69,9 +77,10 @@
 
   // 반향 제거 설정을 바꿔 마이크 다시 열기 (보정값·소음 스펙트럼은 유지)
   let reopening = null;
-  async function reopen(aec) {
+  // force: 설정이 같아도 다시 열기 (이어폰을 꽂거나 빼서 마이크가 바뀌었을 때)
+  async function reopen(aec, force) {
     if (reopening) await reopening;              // 이미 다시 여는 중이면 끝날 때까지
-    if (!stream || aecOn === !!aec) return stream;
+    if (!stream || (!force && aecOn === !!aec)) return stream;
     reopening = (async () => {
       const ns = noiseSpec;
       stopRecording(true);
@@ -183,9 +192,12 @@
     }
 
     // 소리 남/안 남 (히스테리시스 + 짧은 끊김 허용)
+    // 친구가 소리 내는 중이면 기준을 올림: 같은 방에 있거나 스피커로 나온 친구 목소리는
+    // 내 입에서 바로 나온 소리보다 훨씬 작으니, 평소 내 목소리에 가까운 크기만 내 소리로 침
+    const thr = cross ? Math.max(cal.thrOn, Math.min(cal.boongDb, cal.kkiikDb) - 10) : cal.thrOn;
     if (out.ready) {
-      if (out.db > cal.thrOn) { activeRaw = true; offT = 0; }
-      else if (out.db < cal.thrOn - 4) {
+      if (out.db > thr) { activeRaw = true; offT = 0; }
+      else if (out.db < thr - 4) {
         offT += dt;
         if (offT > 0.15) activeRaw = false;
       }
@@ -276,5 +288,5 @@
     return Math.max(0, Math.min(1, (d - lo) / Math.max(10, hi - lo)));
   }
 
-  BB.Audio = { init, resume, reopen, exportCal, importCal, stream: () => stream, aec: () => aecOn, ctx: () => ctx, hasMic: () => !!stream, startRecording, stopRecording, update, measure, captureNoiseFrame, setNoise, applyCalibration, cal, out, keys, pitchNorm, dbNorm };
+  BB.Audio = { init, resume, reopen, setCross, micLabel, exportCal, importCal, stream: () => stream, aec: () => aecOn, ctx: () => ctx, hasMic: () => !!stream, startRecording, stopRecording, update, measure, captureNoiseFrame, setNoise, applyCalibration, cal, out, keys, pitchNorm, dbNorm };
 })();

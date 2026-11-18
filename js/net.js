@@ -28,6 +28,9 @@
   let client = null, ch = null, lastSend = 0, me = { name: '', color: '#ff6b6b', ready: false };
   let localStream = null, voiceReady = false;
   const cars = new Map();     // id -> 마지막 위치
+  const loudAt = new Map();    // id -> 친구가 마지막으로 소리 낸 시각
+  // 친구 중 누가 방금(0.5초 안) 소리를 냈나
+  function friendSound() { const now = performance.now(); for (const t of loudAt.values()) if (now - t < 500) return true; return false; }
   const rtc = new Map();      // id -> { pc, audio, pending: [] }
   // 방 인원은 Supabase 접속자 목록 + 2초마다 오는 안부(hello)를 합쳐서 판단
   // (접속자 목록은 상태를 자주 바꾸면 잠깐 어긋날 때가 있어서)
@@ -93,6 +96,7 @@
       let vx = 0, vy = 0;
       if (prev && now - prev.t > 20 && now - prev.t < 500) { vx = (x - prev.x) / ((now - prev.t) / 1000); vy = (y - prev.y) / ((now - prev.t) / 1000); }
       cars.set(p.id, { x, y, vx, vy, h: num(p.h) || 0, s: num(p.s) || 0, z: num(p.z) || 0, st: num(p.st), f: p.f === 1, t: now });
+      if (p.v === 1 || p.v === 2) loudAt.set(p.id, now);
     });
     ch.on('broadcast', { event: 'horn' }, ({ payload: p }) => { if (p && typeof p.id === 'string' && N.onHorn) N.onHorn(p.id); });
     ch.on('broadcast', { event: 'start' }, ({ payload: p }) => {
@@ -163,12 +167,17 @@
 
   function send(event, payload) { if (ch && N.on) ch.send({ type: 'broadcast', event, payload }).catch(() => {}); }
 
-  function sendState(car, stage, finished) {
+  // v: 내가 지금 소리 내는 중인지 (0 조용, 1 붕, 2 끼익) → 친구 쪽에서 내 목소리가 친구 차를 움직이지 않게 씀
+  let lastV = 0;
+  function sendState(car, stage, finished, v) {
     if (!N.on) return;
     const now = performance.now();
-    if (now - lastSend < 100) return;
-    lastSend = now;
-    send('car', { id: myId, x: Math.round(car.x), y: Math.round(car.y), h: Math.round(car.h * 100) / 100, s: Math.round(car.s), z: Math.round(car.z || 0), st: stage, f: finished ? 1 : 0 });
+    v = v | 0;
+    // 소리를 막 내기 시작했으면 기다리지 않고 바로 알림 (너무 잦지 않게 40ms 간격은 둠)
+    const urgent = v !== lastV && v > 0 && now - lastSend > 40;
+    if (now - lastSend < 100 && !urgent) return;
+    lastSend = now; lastV = v;
+    send('car', { id: myId, x: Math.round(car.x), y: Math.round(car.y), h: Math.round(car.h * 100) / 100, s: Math.round(car.s), z: Math.round(car.z || 0), st: stage, f: finished ? 1 : 0, v });
   }
   function horn() { send('horn', { id: myId }); }
   // 같이 출발: 3.5초 뒤 출발 (보낸 사람도 같은 시간)
@@ -309,6 +318,6 @@
     return n;
   }
 
-  Object.assign(N, { makeCode, cleanCode, join, leave, sendState, horn, startRace, finish, endRace, setStatus, enableVoice, setVoice, kickAudio, voiceCount, voiceStates, stage: 0, raceStage: null });
+  Object.assign(N, { friendSound, makeCode, cleanCode, join, leave, sendState, horn, startRace, finish, endRace, setStatus, enableVoice, setVoice, kickAudio, voiceCount, voiceStates, stage: 0, raceStage: null });
   BB.Net = N;
 })();

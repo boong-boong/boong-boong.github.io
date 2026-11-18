@@ -42,7 +42,7 @@
     calib: $('calib'), calibStop: $('calibStop'), calibText: $('calibText'), calibFill: $('calibFill'), calibSub: $('calibSub'),
     roomBox: $('roomBox'), roomOut: $('roomOut'), roomIn: $('roomIn'), roomInfo: $('roomInfo'), roomMsg: $('roomMsg'),
     nick: $('nick'), roomCode: $('roomCode'), roomMake: $('roomMake'), roomJoin: $('roomJoin'), roomCopy: $('roomCopy'), roomLeave: $('roomLeave'),
-    roomHud: $('roomHud'), raceBtn: $('raceBtn'), voiceBtn: $('voiceBtn'),
+    roomHud: $('roomHud'), raceBtn: $('raceBtn'), voiceBtn: $('voiceBtn'), earBtn: $('earBtn'),
     arrive: $('arrive'), stats: $('arriveStats'), board: $('board'), playback: $('playbackBtn'), retry: $('retryBtn'), next: $('nextBtn'),
   };
   const show = (el, on) => el.classList.toggle('hidden', !on);
@@ -397,7 +397,7 @@
 
     if (!forceButtons && !micOk) {
       // 권한 묻는 창에 답할 때까지 기다림 (막힌 곳에선 바로 실패로 돌아옴)
-      try { await A.init({ aec: Net.on }); micOk = true; }
+      try { await A.init({ aec: wantAec() }); micOk = true; detectEar(); }
       catch (e) { micOk = false; }
     }
     if (orientReq) await orientReq;
@@ -418,7 +418,7 @@
     started = true;
     // 지난번 보정값이 있으면 10초 보정 건너뛰기 (「보정」 버튼으로 언제든 다시)
     let usedSaved = false;
-    if (mode === 'mic' && !calibrated && A.importCal(store.get('cal', null))) { calibrated = true; usedSaved = true; }
+    if (mode === 'mic' && !calibrated && A.importCal(savedCal())) { calibrated = true; usedSaved = true; }
     setupVoice();
     show(ui.title, false);
     if (mode === 'mic' && (!calibrated || usedSaved)) startCalibration('play', usedSaved);
@@ -447,17 +447,70 @@
 
   // ---------- 친구랑 같이 (방) ----------
   let started = false, countT = 0;
+  // ---------- 이어폰 ----------
+  // 반향 제거(aec)를 켜면 안드로이드가 '통화 모드'로 바뀌어 소리가 블루투스 이어폰 대신 폰으로 나가고,
+  // 이어폰 마이크도 통화용으로만 잡힘. 이어폰을 끼면 스피커 소리가 마이크로 다시 들어갈 일이 없으니 aec를 끔.
+  // ear: 'auto'(연결된 장치 이름으로 판단) | 'on' | 'off'
+  let earPref = store.get('ear', 'auto'), earSeen = false;
+  const EAR_RE = /bluetooth|headset|headphone|earphone|earbud|airpods|buds|hands-?free|wired|이어폰|헤드셋|헤드폰|블루투스/i;
+  async function detectEar() {
+    try {
+      const ds = await navigator.mediaDevices.enumerateDevices();
+      earSeen = ds.some((d) => (d.kind === 'audioinput' || d.kind === 'audiooutput') && d.label && EAR_RE.test(d.label) && !/earpiece/i.test(d.label));
+    } catch (e) {}
+    renderEar();
+    return earSeen;
+  }
+  function earOn() { return earPref === 'on' || (earPref === 'auto' && earSeen); }
+  function wantAec() { return Net.on && !earOn(); }
+  function renderEar() {
+    if (!ui.earBtn) return;
+    ui.earBtn.textContent = earOn() ? '이어폰 씀' : '이어폰 안 씀';
+    ui.earBtn.classList.toggle('off', !earOn());
+  }
+  // 마이크마다 소리 크기가 달라서 엔진 조정 값을 마이크 이름별로도 저장
+  function savedCal() { const l = A.micLabel(); return (l && store.get('cal:' + l, null)) || store.get('cal', null); }
+  function saveCal() { const o = A.exportCal(); store.set('cal', o); const l = A.micLabel(); if (l) store.set('cal:' + l, o); }
+  // 이어폰을 꽂거나 빼면: 마이크를 새로 열고, 친구에게 가는 소리도 새 마이크로, 멈춘 소리 다시 켜기
+  let devTimer = 0, devBusy = false;
+  async function onDevices() {
+    if (devBusy) return; devBusy = true;
+    try {
+      const before = A.micLabel();
+      await detectEar();
+      if (micOk && started && mode === 'mic') {
+        const wasRec = state === 'play';
+        await A.reopen(wantAec(), true);
+        if (wasRec) A.startRecording();
+        if (Net.on) Net.enableVoice(A.stream());
+        const after = A.micLabel();
+        if (after !== before) {
+          const c = after && store.get('cal:' + after, null);
+          if (c) A.importCal(c);
+          else if (state === 'play' || state === 'arrived') flash(earOn() ? '이어폰을 찾았어요\n잘 안 되면 「엔진 조정」' : '마이크가 바뀌었어요\n잘 안 되면 「엔진 조정」', 2.6);
+        }
+      }
+      A.resume(); Sfx.unlock(); Net.kickAudio();
+    } catch (e) {}
+    devBusy = false;
+  }
+  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+    navigator.mediaDevices.addEventListener('devicechange', () => { clearTimeout(devTimer); devTimer = setTimeout(onDevices, 700); });
+  }
+  A.onLost = () => { clearTimeout(devTimer); devTimer = setTimeout(onDevices, 300); };
+
   async function setupVoice() {
     if (!Net.on || !started) return;
     if (mode === 'mic' && micOk) {
       const wasRec = state === 'play';
-      await A.reopen(true);              // 친구 목소리가 내 마이크로 다시 들어가지 않게
+      await A.reopen(wantAec());         // 스피커로 들을 땐 친구 목소리가 내 마이크로 다시 들어가지 않게 (이어폰이면 끔)
       if (wasRec) A.startRecording();
       Net.enableVoice(A.stream());
     } else Net.enableVoice(null);
   }
   function renderRoom() {
     const inRoom = Net.on;
+    renderEar();
     show(ui.roomLine, inRoom);
     if (inRoom) ui.roomLine.textContent = '방 ' + Net.code + ' · ' + Net.members.length + '명';
     show(ui.roomOut, !inRoom); show(ui.roomIn, inRoom);
@@ -532,6 +585,10 @@
   });
   ui.raceBtn.addEventListener('click', () => { const r = Net.startRace(stageIdx); beginCount(r.stage, r.wait); });
   ui.voiceBtn.addEventListener('click', () => Net.setVoice(!Net.voice));
+  ui.earBtn.addEventListener('click', () => {
+    earPref = earOn() ? 'off' : 'on'; store.set('ear', earPref);
+    renderEar(); setupVoice();
+  });
   if (BB.ARTIFACT) { show(ui.roomBox, false); show($('roomBtn'), false); }   // 아티팩트에선 아티팩트 자체 같이 달리기 사용
   else {
     const m = location.hash.match(/^#room-([A-Za-z0-9]{4})$/);
@@ -618,7 +675,7 @@
       text = '끼익! 한 번 해 봐'; cls = 'kkiik';
       if (raw) c.kkiik.push(raw);
     } else {
-      if (!c.done) { c.done = true; c.ok = A.applyCalibration({ boong: c.boong, kkiik: c.kkiik }); calibrated = true; if (c.ok) store.set('cal', A.exportCal()); }
+      if (!c.done) { c.done = true; c.ok = A.applyCalibration({ boong: c.boong, kkiik: c.kkiik }); calibrated = true; if (c.ok) saveCal(); }
       text = '좋아!';
       ui.calibSub.textContent = c.ok ? '' : '소리가 잘 안 들렸어요\n「엔진 조정」을 다시 해도 돼요';
       show(ui.calibStop, false);
@@ -1536,7 +1593,8 @@
     if (state === 'play' || state === 'arrived') On.sendState(car, color, state === 'arrived');
     Net.stage = stageIdx;
     Net.setStatus(state, stageIdx, hat);
-    if (state === 'play' || state === 'arrived' || state === 'count') Net.sendState(car, stageIdx, state === 'arrived');
+    if (state === 'play' || state === 'arrived' || state === 'count') Net.sendState(car, stageIdx, state === 'arrived', mode === 'mic' ? (A.out.type === 'boong' ? 1 : A.out.type === 'kkiik' ? 2 : 0) : 0);
+    A.setCross(Net.on && Net.friendSound());
 
     // 카메라: 진행 방향을 위로
     const moveA = speed > 60 ? Math.atan2(car.vx, -car.vy) : car.h;
