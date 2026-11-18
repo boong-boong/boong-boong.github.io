@@ -633,7 +633,7 @@
       ms.forEach((m, i) => {
         const row = document.createElement('div'); row.className = 'fr'; row.dataset.id = m.id;
         row.innerHTML = (m.id === hostId ? ICON_CROWN.replace('<svg', '<svg class="crown"') : '') + '<span class="nm"></span>' + MIC('mc' + i);
-        row.querySelector('.nm').textContent = m.id === Net.myId ? m.name + ' (나)' : m.name;
+        row.querySelector('.nm').textContent = m.id === Net.myId ? (m.name === '나' ? '나' : m.name + ' (나)') : m.name;
         ui.friendList.appendChild(row);
       });
     }
@@ -705,6 +705,11 @@
     earPref = earOn() ? 'off' : 'on'; store.set('ear', earPref);
     renderEar(); setupVoice();
   });
+  // 시험판: 주소 뒤에 ?test → 봇 친구 2명과 같이 (진짜 방 없이)
+  if (!BB.ARTIFACT && /[?&]test\b/.test(location.search)) {
+    Net.startBots(2, store.get('nick', '') || '나', color);
+    ui.titleMsg.textContent = '시험판: 봇 친구 2명이랑 같이\n「시작」을 눌러 줘';
+  }
   if (BB.ARTIFACT) { show(ui.roomBox, false); show($('roomBtn'), false); }   // 아티팩트에선 아티팩트 자체 같이 달리기 사용
   else {
     const m = location.hash.match(/^#room-([A-Za-z0-9]{4})$/);
@@ -1561,8 +1566,9 @@
   // 소리 막대: 높이(낮음↔높음), 크기
   function drawMeter() {
     const out = A.out, cal = A.cal;
-    const w = 66, h = 200;
-    const x = cw - w - 10, y = Math.max(70, ch * 0.24);
+    // 오른쪽 위 메뉴 버튼 바로 아래 (오른쪽 아래는 경적 등 버튼 자리)
+    const w = 66, h = Math.round(Math.max(130, Math.min(200, ch * 0.3)));
+    const x = cw - w - 10, y = 62;
     const col = out.type === 'boong' ? '#ff8a4c' : out.type === 'kkiik' ? '#2bb3d9' : '#b8b3c4';
 
     g.fillStyle = 'rgba(255,255,255,.62)'; D.rr(g, x, y, w, h + 54, 16); g.fill();
@@ -1725,8 +1731,10 @@
     if (state === 'play' || state === 'arrived' || state === 'count' || state === 'wait') Net.sendState(car, stageIdx, state === 'arrived', mode === 'mic' ? (A.out.type === 'boong' ? 1 : A.out.type === 'kkiik' ? 2 : 0) : 0);
     A.setCross(Net.on && Net.friendSound());
 
+    if (Net.test) Net.tickBots(dt, track, T.pointAt, P.VMAX);
     // 관전: 먼저 도착했으면 아직 달리는 친구를 따라감
     const spec = specTarget();
+    ui.hud.classList.toggle('arrived', state === 'arrived'); ui.hud.classList.toggle('buttons', mode === 'buttons');
     camYF += ((state === 'arrived' ? 0.4 : 0.68) - camYF) * Math.min(1, dt * 4);
     renderSpec(spec);
     // 카메라: 진행 방향을 위로

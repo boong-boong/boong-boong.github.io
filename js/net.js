@@ -88,6 +88,7 @@
     try { return await joining; } finally { joining = null; }
   }
   async function joinInner(code, name, color) {
+    if (N.test) await leave();
     code = cleanCode(code);
     if (code.length !== 4) return { ok: false, why: '방 코드는 4글자예요' };
     if (!window.supabase || !BB.NET_CONFIG) return { ok: false, why: '연결 준비가 안 됐어요\n인터넷을 확인해 줘' };
@@ -166,7 +167,75 @@
     return { ok: true };
   }
 
+  // ---------- 시험판: 봇 친구 ----------
+  // 주소에 ?test 를 붙이면 진짜 방 없이, 트랙을 따라 달리는 봇 친구들과 같이 하기 (나는 방장)
+  let bots = [];
+  const BOT_DEF = [
+    { id: 'bot-minji', name: '민지', color: '#4dabf7', skill: 0.66, lane: -24 },
+    { id: 'bot-dasol', name: '다솔', color: '#51cf66', skill: 0.57, lane: 24 },
+    { id: 'bot-junho', name: '준호', color: '#b197fc', skill: 0.62, lane: 0 },
+  ];
+  function startBots(n, name, color) {
+    if (N.on) return;
+    N.on = true; N.test = true; N.code = 'TEST';
+    me = { name: str(name, 12) || '나', color, ready: false, since: Date.now() };
+    bots = BOT_DEF.slice(0, Math.max(1, Math.min(3, n))).map((d, i) => ({ ...d, since: me.since + 1 + i, st: 'wait', s: 0, v: 0, ph: Math.random() * 6, x: 0, y: 0, h: 0 }));
+    botsKnown();
+    rebuildMembers(); changed();
+  }
+  function stopBots() {
+    bots.forEach((b) => { known.delete(b.id); cars.delete(b.id); lastSeen.delete(b.id); });
+    bots = []; N.test = false;
+  }
+  function botsKnown() {
+    const now = performance.now();
+    bots.forEach((b) => {
+      known.set(b.id, { name: b.name, color: b.color, ready: false, st: b.st === 'count' ? 'play' : b.st, stage: b.stage ?? N.stage, hat: '', since: b.since, t: now });
+      lastSeen.set(b.id, now);
+    });
+  }
+  function botsStart(stage) {
+    const now = performance.now();
+    bots.forEach((b) => { b.st = 'count'; b.stage = stage; b.s = 0; b.v = 0; b.goAt = now + 3500 + Math.random() * 350; });
+  }
+  // 매 프레임 (게임에서 부름): 트랙을 따라 굽은 곳에선 느리게
+  function tickBots(dt, track, pointAt, vmax) {
+    if (!N.test || !track) return;
+    const now = performance.now();
+    let chg = false;
+    for (const b of bots) {
+      if (b.st === 'wait') { b.stage = N.stage; b.s = 0; }
+      if (b.st === 'count' && now >= b.goAt) { b.st = 'play'; b.t0 = b.goAt; chg = true; }
+      if (b.st === 'play') {
+        const p1 = pointAt(track, b.s), p2 = pointAt(track, b.s + 140);
+        let dh = p2.h - p1.h; while (dh > Math.PI) dh -= 2 * Math.PI; while (dh < -Math.PI) dh += 2 * Math.PI;
+        const want = vmax * b.skill * (1 - Math.min(0.55, Math.abs(dh) * 0.9)) * (0.9 + 0.18 * Math.sin(now / 1400 + b.ph));
+        b.v += (want - b.v) * Math.min(1, dt * 2);
+        b.s += b.v * dt;
+        if (b.s >= track.total) {
+          b.s = track.total; b.st = 'arrived'; chg = true;
+          const time = Math.round(((now - b.t0) / 1000) * 100) / 100;
+          if (N.race) N.results.push({ id: b.id, name: b.name, time, stars: Math.floor(Math.random() * 4) });
+        }
+      }
+      const p = pointAt(track, b.s);
+      const x = p.x + Math.cos(p.h) * b.lane, y = p.y + Math.sin(p.h) * b.lane;
+      const vx = dt > 0 ? (x - b.x) / dt : 0, vy = dt > 0 ? (y - b.y) / dt : 0;
+      b.x = x; b.y = y; b.h = p.h;
+      cars.set(b.id, { x, y, vx: b.st === 'play' ? vx : 0, vy: b.st === 'play' ? vy : 0, h: p.h, s: b.s, z: 0, st: b.stage ?? N.stage, f: b.st === 'arrived', t: now });
+    }
+    botsKnown();
+    if (chg) { rebuildMembers(); changed(); }
+  }
+  // 봇 목소리: 달릴 때 붕붕 하는 것처럼 오르내림
+  function botLevel(b) {
+    if (b.st !== 'play') return 0;
+    const t = performance.now() / 1000 + b.ph;
+    return Math.sin(t * 0.9) > -0.3 ? Math.max(0, Math.min(1, 0.55 + 0.35 * Math.sin(t * 7) * Math.sin(t * 2.3))) : 0;
+  }
+
   async function leave() {
+    if (N.test) stopBots();
     for (const id of [...rtc.keys()]) closePeer(id);
     cars.clear(); lastSeen.clear(); known.clear(); presenceList = [];
     if (ch) { try { await ch.untrack(); } catch (e) {} try { await client.removeChannel(ch); } catch (e) {} }
@@ -195,6 +264,7 @@
     const race = Math.random().toString(36).slice(2, 8);
     N.race = race; N.results = []; N.raceStage = stage;
     send('start', { stage, wait: 3500, race });
+    botsStart(stage);
     changed();
     return { stage, wait: 3500 };
   }
@@ -343,6 +413,7 @@
       if (on && lv < 0.05 && loudAt.has(id) && performance.now() - loudAt.get(id) < 300) lv = 0.7;
       o[id] = { on, lv };
     });
+    bots.forEach((b) => (o[b.id] = { on: true, lv: botLevel(b) }));
     return o;
   }
   function voiceStates() { const o = {}; rtc.forEach((r, id) => (o[id] = r.pc.connectionState + '/' + r.pc.signalingState)); return { me: myId, ready: voiceReady, hasStream: !!localStream, members: N.members.map((m) => m.id + ':' + m.ready + ':' + m.st), rtc: o }; }
@@ -352,6 +423,6 @@
     return n;
   }
 
-  Object.assign(N, { voiceLevels, hostId, isHost, friendSound, makeCode, cleanCode, join, leave, sendState, horn, startRace, finish, endRace, setStatus, enableVoice, setVoice, kickAudio, voiceCount, voiceStates, stage: 0, raceStage: null });
+  Object.assign(N, { startBots, tickBots, voiceLevels, hostId, isHost, friendSound, makeCode, cleanCode, join, leave, sendState, horn, startRace, finish, endRace, setStatus, enableVoice, setVoice, kickAudio, voiceCount, voiceStates, stage: 0, raceStage: null });
   BB.Net = N;
 })();
