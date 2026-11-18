@@ -372,8 +372,8 @@ button.round.bigIcon.go svg .fill { fill: #fff; }
 #hudTools #hornBtn svg { width: 28px; height: 28px; }
 #hud.arrived #hudTools { display: none; }
 #hud.buttons #hudTools { bottom: calc(190px + env(safe-area-inset-bottom)); }
-/* 말풍선은 화면 한가운데 */
-#bubble { left: 50%; top: 46%; }
+/* 말풍선은 가운데 위쪽 (차와 길 앞쪽을 가리지 않게, 왼쪽 위 기록 표시 아래) */
+#bubble { left: 50%; top: max(calc(150px + env(safe-area-inset-top)), 22%); }
 
 /* 도착 카드: 내 기록 옆 작은 「내 소리 듣기」, 버튼 줄 맨 앞 「처음 화면」 */
 .statRow { display: flex; align-items: center; justify-content: center; gap: 8px; }
