@@ -45,14 +45,6 @@ canvas#game { position: absolute; inset: 0; width: 100%; height: 100%; display: 
   position: absolute; right: 10px; top: calc(10px + env(safe-area-inset-top));
   display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
 }
-.hudRow { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 210px; }
-button.chip {
-  pointer-events: auto; font: inherit; font-size: 14px; color: #3a3350;
-  border: 0; border-radius: 999px; padding: 7px 12px;
-  background: rgba(255,255,255,.88); box-shadow: 0 2px 0 rgba(0,0,0,.12);
-}
-button.chip.go { background: #ff6b6b; color: #fff; box-shadow: 0 2px 0 #c94848; }
-button.chip.off { opacity: .6; }
 button.round {
   pointer-events: auto;
   width: 42px; height: 42px; border-radius: 50%; border: 0; padding: 0;
@@ -105,21 +97,12 @@ button.round:active { transform: translateY(1px); }
 #title { background: rgba(191,230,255,.62); }
 .logo { font-size: 64px; line-height: 1; color: #ff6b6b; text-shadow: 0 5px 0 #c94848; letter-spacing: 4px; }
 .sub { font-size: 20px; opacity: .8; margin-bottom: 6px; }
-.pickLabel { font-size: 14px; opacity: .7; margin-top: 4px; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; align-items: center; }
 .swatch {
   width: 34px; height: 34px; border-radius: 50%; border: 3px solid #fff; padding: 0;
   box-shadow: 0 2px 0 rgba(0,0,0,.15);
 }
 .swatch.sel { outline: 3px solid #3a3350; outline-offset: 2px; }
-.stageBtn {
-  font: inherit; font-size: 20px; color: #3a3350;
-  width: 52px; height: 56px; border-radius: 16px; border: 0; padding: 4px 0 0;
-  background: rgba(255,255,255,.88); box-shadow: 0 3px 0 rgba(0,0,0,.12);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1;
-}
-.stageBtn small { font-size: 10px; opacity: .7; font-variant-numeric: tabular-nums; min-height: 1.1em; }
-.stageBtn.sel { background: #ff6b6b; color: #fff; box-shadow: 0 3px 0 #c94848; }
 button.big {
   font: inherit; font-size: 28px; color: #fff;
   border: 0; border-radius: 999px; padding: 14px 40px;
@@ -217,7 +200,6 @@ button.round.big2 { width: 48px; height: 48px; font-size: 18px; }
   #title { gap: 8px; }
   .logo { font-size: 46px; }
   .sub { display: none; }
-  .pickLabel { margin-top: 0; }
   .stInfo { padding: 5px 10px; }
   .stName { font-size: 19px; }
   button.big { padding: 11px 36px; font-size: 24px; }
@@ -281,7 +263,6 @@ button.round.icon { display: grid; place-items: center; }
 button.round.icon svg { width: 24px; height: 24px; fill: none; stroke: #3a3350; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 button.round.icon.horn svg { stroke: #e8673c; }
 button.round.icon.horn svg .fill { fill: #e8673c; }
-#recalBtn svg .knob { fill: #fff; }
 
 /* 시작 화면 오른쪽 위: 앱 설치 · 공유 */
 .titleCorner { position: absolute; right: 12px; top: calc(12px + env(safe-area-inset-top)); display: flex; gap: 8px; z-index: 1; }

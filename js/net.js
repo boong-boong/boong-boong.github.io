@@ -28,6 +28,7 @@
   let client = null, ch = null, lastSend = 0, me = { name: '', color: '#ff6b6b', ready: false };
   let localStream = null, voiceReady = false;
   const cars = new Map();     // id -> 마지막 위치
+  let sinceFixed = false;     // 들어온 시각을 먼저 있던 사람들 뒤로 맞췄는지
   const loudAt = new Map();    // id -> 친구가 마지막으로 소리 낸 시각
   // 친구 중 누가 방금(0.5초 안) 소리를 냈나
   function friendSound() { const now = performance.now(); for (const t of loudAt.values()) if (now - t < 500) return true; return false; }
@@ -94,6 +95,7 @@
     if (!window.supabase || !BB.NET_CONFIG) return { ok: false, why: '연결 준비가 안 됐어요\n인터넷을 확인해 줘' };
     await leave();
     me = { name: str(name, 12) || '친구', color, ready: voiceReady, since: Date.now() };
+    sinceFixed = false;
     if (!client) client = window.supabase.createClient(BB.NET_CONFIG.url, BB.NET_CONFIG.anonKey, { realtime: { params: { eventsPerSecond: 40 } } });
     ch = client.channel('boong-' + code, { config: { broadcast: { self: false }, presence: { key: myId } } });
 
@@ -147,6 +149,15 @@
       });
       const now = performance.now();
       presenceList.forEach((m) => lastSeen.set(m.id, now));
+      // 방장 정하기는 들어온 시각 순서. 폰 시계가 늦어도 먼저 있던 사람보다 앞서지 않게, 처음 한 번 맞춤
+      if (!sinceFixed) {
+        sinceFixed = true;
+        const others = presenceList.filter((m) => m.id !== myId && m.since != null);
+        if (others.length) {
+          const mx = Math.max(...others.map((m) => m.since));
+          if (me.since <= mx) { me.since = mx + 1; ch.track(me).catch(() => {}); sendHello(); }
+        }
+      }
       rebuildMembers();
       syncVoice();
       changed();

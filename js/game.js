@@ -326,19 +326,6 @@
       e.prompt();
       try { await e.userChoice; } catch (x) {}
       renderInstall();
-
-  // ---------- 앱 공유 ----------
-  // 폰은 공유 창(카톡·문자 등), 공유 창이 없으면 링크 복사
-  $('shareBtn').addEventListener('click', async () => {
-    const url = location.origin + location.pathname;
-    const data = { title: '입으로 하는 운전, 붕붕', text: '붕~ 하면 가고, 끼익! 하면 미끄러지는 목소리 자동차 게임', url };
-    if (navigator.share) {
-      try { await navigator.share(data); return; } catch (e) { if (e && e.name === 'AbortError') return; }
-    }
-    try { await navigator.clipboard.writeText(url); ui.titleMsg.textContent = '링크를 복사했어요!\n친구에게 붙여 넣어 보내 줘'; }
-    catch (e) { ui.titleMsg.textContent = url; }
-  });
-  if (BB.ARTIFACT) show($('shareBtn'), false);
       return;
     }
     show($('installIos'), isIos); show($('installOther'), !isIos);
@@ -397,7 +384,7 @@
 
     if (!forceButtons && !micOk) {
       // 권한 묻는 창에 답할 때까지 기다림 (막힌 곳에선 바로 실패로 돌아옴)
-      try { await A.init({ aec: wantAec() }); micOk = true; detectEar(); }
+      try { await A.init({ aec: wantAec() }); micOk = true; await detectEar(); }
       catch (e) { micOk = false; }
     }
     if (orientReq) await orientReq;
@@ -429,8 +416,6 @@
   }
   ui.start.addEventListener('click', () => begin(false));
 
-  // 버튼으로 플레이하는 건 막음 (마이크 필수). 버튼 모드는 마이크를 원래 못 쓰는 아티팩트 버전에만 남김
-
   function nightIntro() { if (track.night) flash('밤이에요!\n소리 내면 깜깜해져', 2.2); }
   function startPlay() {
     // 친구 방: 방장은 모두와 같이 출발, 나머지는 방장을 기다림
@@ -448,6 +433,7 @@
   }
 
   // ---------- 친구랑 같이 (방) ----------
+  let friendOpen = false, friendKey = '', friendT = 0;   // 친구 목록 펼침
   const ICON_PEOPLE = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.5A5 5 0 0 1 21.5 19.5"/></svg>';
   const ICON_CROWN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M3.5 8l4.5 4 4-6 4 6 4.5-4-2 10h-13z"/></svg>';
   let started = false, countT = 0;
@@ -484,7 +470,10 @@
       await detectEar();
       if (micOk && started && mode === 'mic') {
         const wasRec = state === 'play';
-        await A.reopen(wantAec(), true);
+        try {
+          if (A.hasMic()) await A.reopen(wantAec(), true);
+          else { await A.init({ aec: wantAec() }); const c = savedCal(); if (c) A.importCal(c); }   // 끊겼던 마이크 다시
+        } catch (e) { flash('마이크가 끊겼어요\n이어폰을 다시 연결해 줘', 3); throw e; }
         if (wasRec) A.startRecording();
         if (Net.on) Net.enableVoice(A.stream());
         const after = A.micLabel();
@@ -543,6 +532,7 @@
         ui.friends.setAttribute('aria-label', '같이 하는 사람 ' + (n + 1) + '명' + (Net.isHost() ? ', 내가 방장' : ''));
       }
     }
+    else { show(ui.friends, On.on && On.peers.length > 0); friendOpen = false; show(ui.friendList, false); delete ui.friends.dataset.k; }
     ui.voiceBtn.classList.toggle('off', !Net.voice);
     ui.voiceBtn.setAttribute('aria-label', Net.voice ? '친구 소리 켬 (누르면 끔)' : '친구 소리 끔 (누르면 켬)');
   }
@@ -616,7 +606,6 @@
   $('specNext').addEventListener('click', () => specStep(1));
 
   // ---------- 친구 목록 (사람 아이콘 누르면): 이름 + 말할 때 차오르는 마이크, 연결 안 되면 음소거 ----------
-  let friendOpen = false, friendKey = '', friendT = 0;
   const MIC = (id) => '<svg class="mic" viewBox="0 0 24 24" aria-hidden="true"><defs><clipPath id="' + id + '"><rect x="8.5" y="3" width="7" height="12" rx="3.5"/></clipPath></defs>'
     + '<rect class="lvl" clip-path="url(#' + id + ')" x="8.5" y="15" width="7" height="0"/>'
     + '<rect class="body" x="8.5" y="3" width="7" height="12" rx="3.5"/><path class="stand" d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/><path class="slash" d="M4 4l16 16"/></svg>';
@@ -652,9 +641,9 @@
   // 방장이 나가서 내가 방장이 됐는데 아무도 출발을 안 시키고 기다리는 중이면 바로 출발
   let wasHost = true;
   function checkHostChange() {
-    const h = !follower();
-    if (h && !wasHost && state === 'wait') hostGo(stageIdx);
-    wasHost = h;
+    const h = !follower(), was = wasHost;
+    wasHost = h;   // hostGo 안에서 다시 불려도 또 출발시키지 않게 먼저 바꿔 둠
+    if (h && !was && state === 'wait') hostGo(stageIdx);
   }
   let pendingStart = null;   // 보정 중에 받은 같이 출발
   Net.onStart = ({ stage, wait }) => {
@@ -804,9 +793,10 @@
       const d = A.cal.noiseDb - old;
       if (d > 0) A.cal.thrOn += d;
       show(ui.calib, false);
-      startPlay();
-      flash('지난번 엔진 조정 그대로\n바꾸려면 「엔진 조정」', 2.4);
+      // 조정하는 동안 방장이 출발했으면 그 경주로 바로 (startPlay가 먼저 돌면 경주가 지워짐)
       if (pendingStart) { const ps = pendingStart; pendingStart = null; beginCount(ps.stage, Math.max(1500, ps.at - performance.now())); }
+      else startPlay();
+      flash('지난번 엔진 조정 그대로\n바꾸려면 「엔진 조정」', 2.4);
       return;
     }
     if (c.t < t1) {
@@ -1580,12 +1570,6 @@
     return [cw / 2 + (dx * c - dy * s) * cam.z, ch * camYF + (dx * s + dy * c) * cam.z];
   }
 
-  function tag(x, y, text, col) {
-    g.font = '14px Jua, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    const w = g.measureText(text).width + 14;
-    g.fillStyle = 'rgba(255,255,255,.92)'; D.rr(g, x - w / 2, y - 11, w, 22, 11); g.fill();
-    g.fillStyle = col || '#3a3350'; g.fillText(text, x, y);
-  }
 
   // 소리 막대: 높이(낮음↔높음), 크기
   // 오른쪽 아래 버튼 줄의 맨 위 (화면 좌표). 버튼이 숨었으면 마지막 값

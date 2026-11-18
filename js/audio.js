@@ -94,7 +94,8 @@
       stopRecording(true);
       try { src && src.disconnect(); } catch (e) {}
       stream.getTracks().forEach((t) => t.stop());
-      await init({ aec });
+      // 새로 못 열면(이어폰을 뺐는데 다른 마이크도 없음) 마이크 없음으로 표시 → 다음에 장치가 바뀌면 다시 열기
+      try { await init({ aec }); } catch (e) { stream = null; out.ready = false; throw e; }
       noiseSpec.set(ns);
     })();
     try { await reopening; } finally { reopening = null; }
