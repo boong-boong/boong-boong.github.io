@@ -323,3 +323,41 @@ button.round.bigIcon.go svg .fill { fill: #fff; }
 #friends svg { width: 18px; height: 18px; fill: none; stroke: #3a3350; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -3px; }
 #friends svg .fill { fill: #f5b301; stroke: #d99a00; }
 #friends { gap: 6px; align-items: center; }
+
+/* ── 도착: 아래쪽 카드 (위로는 트랙과 관전하는 친구가 보이게) ── */
+#arrive { background: none; justify-content: flex-end; padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+.arriveCard { background: rgba(255,255,255,.94); border-radius: 24px; padding: 14px 16px 16px; width: 100%; max-width: 340px; display: flex; flex-direction: column; align-items: center; gap: 8px; box-shadow: 0 4px 0 rgba(0,0,0,.1); }
+.arriveCard .arriveText { font-size: 40px; }
+.arriveCard .stats { font-size: 19px; line-height: 1.35; }
+.arriveCard .board { box-shadow: none; background: #f6f3fc; width: 100%; max-width: none; min-width: 0; box-sizing: border-box; }
+.board li.run { opacity: .55; }
+.arriveBtns { gap: 12px; }
+.arriveCard button.round.bigIcon { width: 56px; height: 56px; }
+.arriveCard button.round.bigIcon.go { width: 72px; height: 72px; }
+.arriveCard button.round.bigIcon:not(.go) { background: #f1edf8; }
+#stageSheet { z-index: 6; }
+/* 관전 막대 */
+#specBar { position: absolute; left: 50%; top: calc(150px + env(safe-area-inset-top)); transform: translateX(-50%); display: flex; align-items: center; gap: 8px; z-index: 3; }
+#specBar .specName { background: rgba(255,255,255,.92); border-radius: 999px; padding: 6px 14px; font-size: 17px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 0 rgba(0,0,0,.12); white-space: nowrap; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+#specBar svg { width: 22px; height: 22px; fill: none; stroke: #3a3350; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+#specBar svg .fill { fill: #3a3350; }
+/* 친구 목록 */
+#friends { pointer-events: auto; border: 0; font: inherit; color: #3a3350; cursor: pointer; }
+.friendList { pointer-events: auto; background: rgba(255,255,255,.95); border-radius: 16px; padding: 8px 12px; box-shadow: 0 3px 0 rgba(0,0,0,.12); display: flex; flex-direction: column; gap: 6px; min-width: 150px; max-width: 220px; }
+.friendList .fr { display: flex; align-items: center; gap: 6px; font-size: 16px; }
+.friendList .fr .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friendList .fr .crown { width: 16px; height: 16px; }
+.friendList .fr .crown .fill { fill: #f5b301; }
+.friendList .mic { width: 24px; height: 24px; flex: none; }
+.friendList .mic .body { fill: none; stroke: #3a3350; stroke-width: 2; }
+.friendList .mic .lvl { fill: #51cf66; }
+.friendList .mic .stand { fill: none; stroke: #3a3350; stroke-width: 2; stroke-linecap: round; }
+.friendList .mic.off .body, .friendList .mic.off .stand { stroke: #b4adc4; }
+.friendList .mic .slash { stroke: #e8673c; stroke-width: 2.2; stroke-linecap: round; display: none; }
+.friendList .mic.off .slash { display: inline; }
+.friendList .mic.off .lvl { display: none; }
+.board ol.rank { padding-left: 0; list-style: none; }
+.board ol.rank li { justify-content: flex-start; gap: 10px; }
+.board ol.rank .rk { width: 1.2em; text-align: center; color: #ff6b6b; }
+.board ol.rank .nm { flex: 1; max-width: none; }
+.board ol.rank li.me { font-weight: bold; }

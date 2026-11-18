@@ -222,7 +222,7 @@
       if (c.st !== N.stage) return;
       const m = N.members.find((mm) => mm.id === id);
       const ahead = Math.min(0.2, (now - c.t) / 1000);
-      out.push({ key: 'n:' + id, id: null, x: c.x + c.vx * ahead, y: c.y + c.vy * ahead, h: c.h, s: c.s, z: c.z, c: m ? m.color : '#9b8cff', name: m ? m.name : '친구', f: c.f, hat: m ? m.hat : '' });
+      out.push({ key: 'n:' + id, id: null, pid: id, x: c.x + c.vx * ahead, y: c.y + c.vy * ahead, h: c.h, s: c.s, z: c.z, c: m ? m.color : '#9b8cff', name: m ? m.name : '친구', f: c.f, hat: m ? m.hat : '' });
     });
     return out;
   }
@@ -261,7 +261,7 @@
     rtc.set(id, r);
     if (localStream) localStream.getAudioTracks().forEach((t) => pc.addTrack(t, localStream));
     else pc.addTransceiver('audio', { direction: 'recvonly' });
-    pc.ontrack = (e) => { audio.srcObject = e.streams[0] || new MediaStream([e.track]); audio.play().catch(() => {}); changed(); };
+    pc.ontrack = (e) => { audio.srcObject = r.stream = e.streams[0] || new MediaStream([e.track]); audio.play().catch(() => {}); changed(); };
     pc.onicecandidate = (e) => { if (e.candidate) send('sig', { to: id, from: myId, type: 'ice', c: e.candidate.toJSON() }); };
     pc.onconnectionstatechange = () => {
       const st = pc.connectionState;
@@ -321,6 +321,30 @@
     rtc.forEach((r) => { r.audio.muted = !on; if (on) r.audio.play().catch(() => {}); });
     changed();
   }
+  // 친구 목소리 크기 (친구 목록의 마이크 표시용): id -> { on: 목소리 연결됨, lv: 0..1 }
+  function voiceLevels() {
+    const o = {};
+    rtc.forEach((r, id) => {
+      const tr = r.stream && r.stream.getAudioTracks()[0];
+      const on = r.pc.connectionState === 'connected' && !!tr && tr.readyState === 'live';
+      let lv = 0;
+      if (on) {
+        // 받는 쪽 소리 크기 (브라우저가 재 준 값, 0~1)
+        try {
+          const rc = r.pc.getReceivers().find((x) => x.track && x.track.kind === 'audio');
+          const src = rc && rc.getSynchronizationSources ? rc.getSynchronizationSources()[0] : null;
+          if (src && typeof src.audioLevel === 'number') {
+            const db = 20 * Math.log10(src.audioLevel + 1e-9);
+            lv = Math.max(0, Math.min(1, (db + 50) / 40));
+          }
+        } catch (e) {}
+      }
+      // 소리 크기를 못 재면 '소리 내는 중' 신호로라도
+      if (on && lv < 0.05 && loudAt.has(id) && performance.now() - loudAt.get(id) < 300) lv = 0.7;
+      o[id] = { on, lv };
+    });
+    return o;
+  }
   function voiceStates() { const o = {}; rtc.forEach((r, id) => (o[id] = r.pc.connectionState + '/' + r.pc.signalingState)); return { me: myId, ready: voiceReady, hasStream: !!localStream, members: N.members.map((m) => m.id + ':' + m.ready + ':' + m.st), rtc: o }; }
   function voiceCount() {
     let n = 0;
@@ -328,6 +352,6 @@
     return n;
   }
 
-  Object.assign(N, { hostId, isHost, friendSound, makeCode, cleanCode, join, leave, sendState, horn, startRace, finish, endRace, setStatus, enableVoice, setVoice, kickAudio, voiceCount, voiceStates, stage: 0, raceStage: null });
+  Object.assign(N, { voiceLevels, hostId, isHost, friendSound, makeCode, cleanCode, join, leave, sendState, horn, startRace, finish, endRace, setStatus, enableVoice, setVoice, kickAudio, voiceCount, voiceStates, stage: 0, raceStage: null });
   BB.Net = N;
 })();

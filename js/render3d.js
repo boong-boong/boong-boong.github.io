@@ -9,6 +9,7 @@
 
   function draw(g, cw, ch, S) {
     const out = { x: cw / 2, y: ch * 0.6, k: 1 };
+    const tags = [];
     const { track, car, camA } = S;
     const W = BB.ROAD_W, G = BB.GRASS_W;
     const F = cw * 0.9;
@@ -170,8 +171,9 @@
     for (const pe of S.peers) {
       sprite(pe.x, pe.y, 0, (g2, x, y, k) => {
         drawCarRear(g2, x, y, k * CAR_K, pe.c, wrap(pe.h - camA), 0, pe.alpha || 0.85, false, pe.hat);
-        if (pe.label) label(g2, x, y - 64 * k * CAR_K, pe.label, k);
-        if (pe.horn > 0) label(g2, x, y - 90 * k * CAR_K, '빵!', k, '#e8673c');
+        // 이름표는 나무 등에 가리지 않게 맨 마지막에 한꺼번에 (겹치면 위로 비켜서)
+        if (pe.label) tags.push({ x, y: y - 64 * k * CAR_K, text: pe.label, k, color: pe.labelColor });
+        if (pe.horn > 0) tags.push({ x, y: y - 64 * k * CAR_K, text: '빵!', k, color: '#e8673c' });
       }, -5);
     }
     // 내 차
@@ -181,7 +183,8 @@
         out.x = x; out.y = y; out.k = k;
         const blinkA = car.blink > 0 && Math.floor(car.blink * 10) % 2 === 0 ? 0.35 : 1;
         drawCarRear(g2, x, y, k * CAR_K, S.color, wrap(car.h - camA), car.steer, blinkA, car.turbo > 0, S.hat);
-        if (S.myHorn > 0) label(g2, x, y - 90 * k * CAR_K, '빵!', k, '#e8673c');
+        if (S.myLabel) tags.push({ x, y: y - 64 * k * CAR_K, text: S.myLabel, k, color: S.myLabelColor });
+        if (S.myHorn > 0) tags.push({ x, y: y - 64 * k * CAR_K, text: '빵!', k, color: '#e8673c' });
       }, -6);
     }
 
@@ -211,11 +214,30 @@
       for (let i = 1; i < it.pts.length; i++) g.lineTo(it.pts[i][0], it.pts[i][1]);
       g.closePath(); g.fill();
     }
+    placeTags(g, tags.map((t) => ({ ...t, fs: Math.max(11, Math.min(18, 9 * t.k)) })));
     return out;
   }
 
   function wrap(a) { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; }
 
+  // 이름표 여러 개: 가까운 것(아래쪽)부터 놓고, 이미 놓인 것과 겹치면 위로 올림
+  function placeTags(g, tags) {
+    const placed = [];
+    tags.sort((a, b) => b.y - a.y);
+    for (const t of tags) {
+      g.font = t.fs + 'px Jua, sans-serif';
+      const w = g.measureText(t.text).width + 12, h = t.fs * 1.5;
+      let y = t.y;
+      for (let n = 0; n < 8; n++) {
+        const hit = placed.find((p) => Math.abs(p.x - t.x) < (p.w + w) / 2 + 2 && Math.abs(p.y - y) < (p.h + h) / 2 + 2);
+        if (!hit) break;
+        y = hit.y - (hit.h + h) / 2 - 2;
+      }
+      placed.push({ x: t.x, y, w, h });
+      label(g, t.x, y, t.text, t.fs / 9, t.color);
+    }
+  }
+  BB.placeTags = placeTags;
   function label(g, x, y, text, k, color) {
     const fs = Math.max(11, Math.min(18, 9 * k));
     g.font = fs + 'px Jua, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';

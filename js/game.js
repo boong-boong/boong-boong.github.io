@@ -43,7 +43,7 @@
     roomBox: $('roomBox'), roomOut: $('roomOut'), roomIn: $('roomIn'), roomInfo: $('roomInfo'), roomMsg: $('roomMsg'),
     nick: $('nick'), roomCode: $('roomCode'), roomMake: $('roomMake'), roomJoin: $('roomJoin'), roomCopy: $('roomCopy'), roomLeave: $('roomLeave'),
     roomHud: $('roomHud'), voiceBtn: $('voiceBtn'), earBtn: $('earBtn'), waitHost: $('waitHost'),
-    arrive: $('arrive'), stats: $('arriveStats'), board: $('board'), playback: $('playbackBtn'), retry: $('retryBtn'), next: $('nextBtn'),
+    arrive: $('arrive'), stats: $('arriveStats'), board: $('board'), playback: $('playbackBtn'), retry: $('retryBtn'), next: $('nextBtn'), list: $('listBtn'), specBar: $('specBar'), specName: $('specName'), friendList: $('friendList'),
   };
   const show = (el, on) => el.classList.toggle('hidden', !on);
 
@@ -66,7 +66,7 @@
   let view = store.get('view', '2d');
   let color = store.get('color', COLORS[0]);
   const car = {};
-  let cam = { x: 0, y: 0, a: 0, z: 1 };
+  let cam = { x: 0, y: 0, a: 0, z: 1 }, camYF = 0.68;   // camYF: 차가 화면 위아래 어디쯤 (도착하면 위로)
   let particles = [], skids = [], shake = 0;
   let curveSuccess = 0, passedTurns = new Set();
   let steerHintT = 0, steerHintShown = false;
@@ -306,7 +306,7 @@
       const n = document.createElement('span'); n.textContent = st.id;
       b.appendChild(n);
       if (bs[st.id]) { const sm = document.createElement('small'); sm.textContent = '★' + bs[st.id]; b.appendChild(sm); }
-      b.onclick = () => { loadStage(i); store.set('lastStage', i); renderStagePick(); openSheet(null); };
+      b.onclick = () => { if (state === 'arrived') { openSheet(null); playStage(i); return; } loadStage(i); store.set('lastStage', i); renderStagePick(); openSheet(null); };
       row.lastChild.appendChild(b);
     });
   }
@@ -570,7 +570,84 @@
   }
   function renderArriveBtns() {
     const f = follower();
-    show(ui.retry, !f); show(ui.next, !f); show(ui.waitHost, f);
+    show(ui.retry, !f); show(ui.next, !f); show(ui.list, !f); show(ui.waitHost, f);
+  }
+  // 도착 뒤 다음·다시·목록에서 고른 스테이지로: 방에선 방장만, 모두 같이 출발
+  function playStage(i) {
+    if (follower()) return;
+    store.set('lastStage', i);
+    if (inGroup()) { hostGo(i); return; }
+    stopPlayback(); Net.endRace();
+    show(ui.arrive, false);
+    loadStage(i);
+    state = 'play';
+    nightIntro();
+  }
+
+  // ---------- 관전 ----------
+  // 먼저 도착하면 아직 달리는 친구 차를 카메라가 따라감 (◀ ▶로 다른 친구)
+  let specId = null, specKey = '';
+  function specCands() {
+    if (state !== 'arrived' || !Net.on) return [];
+    const racing = new Set(Net.members.filter((m) => m.st === 'play').map((m) => m.id));
+    return Net.peers.filter((p) => !p.f && racing.has(p.pid));
+  }
+  function specTarget() {
+    const c = specCands();
+    if (!c.length) { specId = null; return null; }
+    let p = c.find((x) => x.pid === specId);
+    if (!p) { p = c[0]; specId = p.pid; }
+    return { ...p, label: p.name, horn: peerHorn.get(p.key) || 0 };
+  }
+  function renderSpec(spec) {
+    const n = spec ? specCands().length : 0;
+    const key = spec ? spec.pid + ':' + spec.name + ':' + n : '';
+    if (key === specKey) return;
+    specKey = key;
+    show(ui.specBar, !!spec);
+    if (spec) { ui.specName.textContent = spec.name; show($('specPrev'), n > 1); show($('specNext'), n > 1); }
+  }
+  function specStep(d) {
+    const c = specCands(); if (c.length < 2) return;
+    const i = Math.max(0, c.findIndex((x) => x.pid === specId));
+    specId = c[(i + d + c.length) % c.length].pid;
+  }
+  $('specPrev').addEventListener('click', () => specStep(-1));
+  $('specNext').addEventListener('click', () => specStep(1));
+
+  // ---------- 친구 목록 (사람 아이콘 누르면): 이름 + 말할 때 차오르는 마이크, 연결 안 되면 음소거 ----------
+  let friendOpen = false, friendKey = '', friendT = 0;
+  const MIC = (id) => '<svg class="mic" viewBox="0 0 24 24" aria-hidden="true"><defs><clipPath id="' + id + '"><rect x="8.5" y="3" width="7" height="12" rx="3.5"/></clipPath></defs>'
+    + '<rect class="lvl" clip-path="url(#' + id + ')" x="8.5" y="15" width="7" height="0"/>'
+    + '<rect class="body" x="8.5" y="3" width="7" height="12" rx="3.5"/><path class="stand" d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/><path class="slash" d="M4 4l16 16"/></svg>';
+  ui.friends.addEventListener('click', () => { friendOpen = !friendOpen; friendKey = ''; show(ui.friendList, friendOpen); if (friendOpen) renderFriendList(1); });
+  function renderFriendList(dt) {
+    if (!Net.on || !friendOpen) { if (friendOpen) { friendOpen = false; show(ui.friendList, false); } return; }
+    friendT += dt; if (friendT < 0.066) return; friendT = 0;
+    const hostId = Net.hostId();
+    const ms = Net.members.slice().sort((a, b) => (a.id === hostId ? -1 : b.id === hostId ? 1 : (a.since ?? 0) - (b.since ?? 0)));
+    const key = ms.map((m) => m.id + m.name).join('|') + hostId;
+    if (key !== friendKey) {
+      friendKey = key;
+      ui.friendList.innerHTML = '';
+      ms.forEach((m, i) => {
+        const row = document.createElement('div'); row.className = 'fr'; row.dataset.id = m.id;
+        row.innerHTML = (m.id === hostId ? ICON_CROWN.replace('<svg', '<svg class="crown"') : '') + '<span class="nm"></span>' + MIC('mc' + i);
+        row.querySelector('.nm').textContent = m.id === Net.myId ? m.name + ' (나)' : m.name;
+        ui.friendList.appendChild(row);
+      });
+    }
+    const lv = Net.voiceLevels(A.ctx && A.ctx());
+    const meOn = mode === 'mic' && micOk;
+    const meLv = meOn ? Math.max(0, Math.min(1, (A.out.db - A.cal.thrOn + 6) / Math.max(8, A.cal.boongDb - A.cal.thrOn + 6))) : 0;
+    ui.friendList.querySelectorAll('.fr').forEach((row) => {
+      const id = row.dataset.id, me = id === Net.myId;
+      const v = me ? { on: meOn, lv: meLv } : lv[id] || { on: false, lv: 0 };
+      const mic = row.querySelector('.mic');
+      mic.classList.toggle('off', !v.on);
+      const h = 12 * v.lv;
+      const r = mic.querySelector('.lvl'); r.setAttribute('y', 15 - h); r.setAttribute('height', h);
+    });
   }
   // 방장이 나가서 내가 방장이 됐는데 아무도 출발을 안 시키고 기다리는 중이면 바로 출발
   let wasHost = true;
@@ -783,6 +860,7 @@
       if (recUrl && state === 'arrived') show(ui.playback, true);
     }
   }
+  ui.list.addEventListener('click', () => { if (!follower()) openSheet('stageSheet'); });
   ui.next.addEventListener('click', () => {
     if (follower()) return;
     if (inGroup()) { const n = (stageIdx + 1) % BB.STAGES.length; store.set('lastStage', n); hostGo(n); return; }
@@ -820,14 +898,20 @@
     // 방에서 같이 출발했으면 이번 경주 순위
     if (Net.on && Net.race && Net.results.length) {
       ui.board.innerHTML = '';
-      const h = document.createElement('h3'); h.textContent = '같이 달린 순위';
-      const ol = document.createElement('ol');
-      Net.results.slice().sort((a, b) => a.time - b.time).forEach((r) => {
-        const li = document.createElement('li'); if (r.id === Net.myId) li.className = 'me';
-        const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = r.id === Net.myId ? '나' : r.name;
-        const tm = document.createElement('span'); tm.textContent = fmt(r.time) + ' ★' + r.stars;
-        li.append(nm, tm); ol.appendChild(li);
-      });
+      const h = document.createElement('h3'); h.textContent = '순위';
+      const ol = document.createElement('ol'); ol.className = 'rank';
+      const row = (rk, name, time, cls) => {
+        const li = document.createElement('li'); if (cls) li.className = cls;
+        const r = document.createElement('span'); r.className = 'rk'; r.textContent = rk;
+        const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = name;
+        const tm = document.createElement('span'); tm.className = 'tm'; tm.textContent = time;
+        li.append(r, nm, tm); ol.appendChild(li);
+      };
+      const done = Net.results.slice().sort((a, b) => a.time - b.time);
+      done.forEach((r, i) => row(i + 1, r.id === Net.myId ? '나' : r.name, fmt(r.time), r.id === Net.myId ? 'me' : ''));
+      // 아직 달리는 친구
+      Net.members.filter((m) => m.st === 'play' && m.stage === Net.raceStage && !done.some((r) => r.id === m.id))
+        .forEach((m) => row('·', m.id === Net.myId ? '나' : m.name, '달리는 중', 'run'));
       ui.board.append(h, ol);
       show(ui.board, true);
       return;
@@ -1464,7 +1548,7 @@
   function w2s(x, y) {
     const dx = x - cam.x, dy = y - cam.y;
     const c = Math.cos(-cam.a), s = Math.sin(-cam.a);
-    return [cw / 2 + (dx * c - dy * s) * cam.z, ch * 0.68 + (dx * s + dy * c) * cam.z];
+    return [cw / 2 + (dx * c - dy * s) * cam.z, ch * camYF + (dx * s + dy * c) * cam.z];
   }
 
   function tag(x, y, text, col) {
@@ -1641,12 +1725,18 @@
     if (state === 'play' || state === 'arrived' || state === 'count' || state === 'wait') Net.sendState(car, stageIdx, state === 'arrived', mode === 'mic' ? (A.out.type === 'boong' ? 1 : A.out.type === 'kkiik' ? 2 : 0) : 0);
     A.setCross(Net.on && Net.friendSound());
 
+    // 관전: 먼저 도착했으면 아직 달리는 친구를 따라감
+    const spec = specTarget();
+    camYF += ((state === 'arrived' ? 0.4 : 0.68) - camYF) * Math.min(1, dt * 4);
+    renderSpec(spec);
     // 카메라: 진행 방향을 위로
     const moveA = speed > 60 ? Math.atan2(car.vx, -car.vy) : car.h;
-    const wantA = car.drifting ? moveA : wrap(car.h + wrap(moveA - car.h) * 0.5);
+    const wantA = spec ? spec.h : car.drifting ? moveA : wrap(car.h + wrap(moveA - car.h) * 0.5);
     cam.a += wrap(wantA - cam.a) * Math.min(1, dt * 3);
-    cam.x += (car.x - cam.x) * Math.min(1, dt * 8);
-    cam.y += (car.y - cam.y) * Math.min(1, dt * 8);
+    const fx = spec ? spec.x : car.x, fy = spec ? spec.y : car.y;
+    cam.x += (fx - cam.x) * Math.min(1, dt * 8);
+    cam.y += (fy - cam.y) * Math.min(1, dt * 8);
+    if (friendOpen) renderFriendList(dt);
     const zWant = (cw / 400) * (1 - 0.18 * Math.min(1, speed / P.VMAX));
     cam.z += (zWant - cam.z) * Math.min(1, dt * 2);
     shake = Math.max(0, shake - dt);
@@ -1663,14 +1753,23 @@
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     const sx = shake ? (Math.random() - 0.5) * 16 * shake : 0, sy = shake ? (Math.random() - 0.5) * 16 * shake : 0;
     if (view === '3d' && state !== 'title') {
-      g.save(); g.translate(sx, sy);
-      const r3 = BB.Render3D.draw(g, cw, ch, { track, car, camA: cam.a, particles, peers, color, hat, myHorn, mainI: car.pi ? T.pointAt(track, car.s).i : car.segI });
+      // 도착하면 아래 카드에 가리지 않게 화면을 위로 올려서 그림
+      const up = ch * 0.24 * Math.max(0, Math.min(1, (0.68 - camYF) / 0.28));
+      if (up) { g.fillStyle = track.night ? '#151a40' : '#bfe6ff'; g.fillRect(0, 0, cw, ch); }
+      g.save(); g.translate(sx, sy - up);
+      let r3;
+      if (spec) {
+        // 관전 중: 친구 차를 주인공 자리에, 내 차는 '나' 이름표 단 친구 차처럼
+        const sc = { x: spec.x, y: spec.y, h: spec.h, z: spec.z || 0, s: spec.s, steer: 0, turbo: 0, blink: 0, fallT: -1, pi: 0, segI: T.pointAt(track, spec.s || 0).i };
+        const others = peers.filter((p) => p.key !== spec.key).concat([{ key: 'me', x: car.x, y: car.y, h: car.h, z: car.z, c: color, hat, label: '나', horn: myHorn }]);
+        r3 = BB.Render3D.draw(g, cw, ch, { track, car: sc, camA: cam.a, particles, peers: others, color: spec.c, hat: spec.hat, myHorn: spec.horn, myLabel: spec.label, mainI: sc.segI });
+      } else r3 = BB.Render3D.draw(g, cw, ch, { track, car, camA: cam.a, particles, peers, color, hat, myHorn, mainI: car.pi ? T.pointAt(track, car.s).i : car.segI });
       g.restore();
-      if (track.night && r3) nightOverlay(r3.x, r3.y - 110, (cw / 400) * (80 + 280 * light));
+      if (track.night && r3) nightOverlay(r3.x, r3.y - up - 110, (cw / 400) * (80 + 280 * light));
     } else {
       g.fillStyle = track.night ? '#1d2252' : '#bfe6ff'; g.fillRect(0, 0, cw, ch);
       g.save();
-      g.translate(cw / 2 + sx, ch * 0.68 + sy);
+      g.translate(cw / 2 + sx, ch * camYF + sy);
       g.scale(cam.z, cam.z);
       g.rotate(-cam.a);
       g.translate(-cam.x, -cam.y);
@@ -1693,13 +1792,16 @@
         const [cx, cy] = w2s(car.x + Math.sin(car.h) * 60, car.y - Math.cos(car.h) * 60);
         nightOverlay(cx, cy, (65 + 270 * light) * cam.z);
       }
-      // 이름표 / 빵!
+      // 이름표 / 빵! (겹치면 위로 비켜서)
+      const tags = [];
       for (const p of peers) {
         const [x, y] = w2s(p.x, p.y);
-        tag(x, y - 34, p.label);
-        if (p.horn > 0) tag(x, y - 58, '빵!', '#e8673c');
+        if (p.label) tags.push({ x, y: y - 34, text: p.label, fs: 14 });
+        if (p.horn > 0) tags.push({ x, y: y - 34, text: '빵!', fs: 14, color: '#e8673c' });
       }
-      if (myHorn > 0) { const [x, y] = w2s(car.x, car.y); tag(x, y - 40, '빵!', '#e8673c'); }
+      if (spec) { const [x, y] = w2s(car.x, car.y); tags.push({ x, y: y - 34, text: '나', fs: 14 }); }
+      if (myHorn > 0) { const [x, y] = w2s(car.x, car.y); tags.push({ x, y: y - 34, text: '빵!', fs: 14, color: '#e8673c' }); }
+      BB.placeTags(g, tags);
     }
     if (state !== 'title' && mode === 'mic') drawMeter();
 
@@ -1722,7 +1824,7 @@
   window.BBdebug = {
     dbg, simStep, keyDir, padState, setTilt(v) { tilt = v; }, aheadPoint, get jumpOK() { return jumpOK; }, get quietOK() { return quietOK; }, get light() { return light; }, get rescueN() { return rescueN; },
     get state() { return state; }, car, get track() { return track; }, loadStage,
-    startPlay(m) { mode = m || 'buttons'; startPlay(); }, startCalibration, get stageIdx() { return stageIdx; },
+    startPlay(m) { mode = m || 'buttons'; startPlay(); }, startCalibration, placeCar, get stageIdx() { return stageIdx; },
     get runT() { return runT; }, get stars() { return stars; }, setView(v) { view = v; applyView(); },
   };
 })();
