@@ -34,7 +34,7 @@
   const $ = (id) => document.getElementById(id);
   const canvas = $('game'), g = canvas.getContext('2d');
   const ui = {
-    hud: $('hud'), stage: $('stageLabel'), timer: $('timer'), starCount: $('starCount'), friends: $('friends'),
+    hud: $('hud'), stage: $('stageNum'), timer: $('timer'), starCount: $('starCount'), friends: $('friends'),
     horn: $('hornBtn'), view: $('viewBtn'), recal: $('recalBtn'), home: $('homeBtn'),
     pad: $('pad'), padL: $('padLeft'), padR: $('padRight'), padB: $('padBoong'), padK: $('padKkiik'),
     bubble: $('bubble'),
@@ -42,7 +42,7 @@
     calib: $('calib'), calibStop: $('calibStop'), calibText: $('calibText'), calibFill: $('calibFill'), calibSub: $('calibSub'),
     roomBox: $('roomBox'), roomOut: $('roomOut'), roomIn: $('roomIn'), roomInfo: $('roomInfo'), roomMsg: $('roomMsg'),
     nick: $('nick'), roomCode: $('roomCode'), roomMake: $('roomMake'), roomJoin: $('roomJoin'), roomCopy: $('roomCopy'), roomLeave: $('roomLeave'),
-    roomHud: $('roomHud'), raceBtn: $('raceBtn'), voiceBtn: $('voiceBtn'), earBtn: $('earBtn'),
+    roomHud: $('roomHud'), voiceBtn: $('voiceBtn'), earBtn: $('earBtn'), waitHost: $('waitHost'),
     arrive: $('arrive'), stats: $('arriveStats'), board: $('board'), playback: $('playbackBtn'), retry: $('retryBtn'), next: $('nextBtn'),
   };
   const show = (el, on) => el.classList.toggle('hidden', !on);
@@ -433,6 +433,8 @@
 
   function nightIntro() { if (track.night) flash('밤이에요!\n소리 내면 깜깜해져', 2.2); }
   function startPlay() {
+    // 친구 방: 방장은 모두와 같이 출발, 나머지는 방장을 기다림
+    if (inGroup()) { if (Net.isHost()) { openSheet(null); show(ui.title, false); show(ui.calib, false); show(ui.recal, mode === 'mic'); hostGo(stageIdx); } else waitHost(); return; }
     openSheet(null);
     show(ui.title, false); show(ui.calib, false); show(ui.arrive, false);
     show(ui.hud, true);
@@ -446,6 +448,8 @@
   }
 
   // ---------- 친구랑 같이 (방) ----------
+  const ICON_PEOPLE = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.5A5 5 0 0 1 21.5 19.5"/></svg>';
+  const ICON_CROWN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M3.5 8l4.5 4 4-6 4 6 4.5-4-2 10h-13z"/></svg>';
   let started = false, countT = 0;
   // ---------- 이어폰 ----------
   // 반향 제거(aec)를 켜면 안드로이드가 '통화 모드'로 바뀌어 소리가 블루투스 이어폰 대신 폰으로 나가고,
@@ -465,8 +469,8 @@
   function wantAec() { return Net.on && !earOn(); }
   function renderEar() {
     if (!ui.earBtn) return;
-    ui.earBtn.textContent = earOn() ? '이어폰 씀' : '이어폰 안 씀';
     ui.earBtn.classList.toggle('off', !earOn());
+    ui.earBtn.setAttribute('aria-label', earOn() ? '이어폰 씀 (누르면 안 씀)' : '이어폰 안 씀 (누르면 씀)');
   }
   // 마이크마다 소리 크기가 달라서 엔진 조정 값을 마이크 이름별로도 저장
   function savedCal() { const l = A.micLabel(); return (l && store.get('cal:' + l, null)) || store.get('cal', null); }
@@ -514,35 +518,71 @@
     show(ui.roomLine, inRoom);
     if (inRoom) ui.roomLine.textContent = '방 ' + Net.code + ' · ' + Net.members.length + '명';
     show(ui.roomOut, !inRoom); show(ui.roomIn, inRoom);
-    show(ui.roomHud, inRoom && (state === 'play' || state === 'arrived' || state === 'count'));
+    show(ui.roomHud, inRoom && (state === 'play' || state === 'arrived' || state === 'count' || state === 'wait'));
+    renderArriveBtns();
     if (inRoom) {
       ui.roomInfo.innerHTML = '';
       const a = document.createElement('div'); a.append('방 '); const b = document.createElement('b'); b.textContent = Net.code; a.append(b);
       const stN = (m) => ((m.stage ?? 0) + 1) + '번';
-      const stLabel = (m) => (m.st === 'calib' ? '엔진 조정 중' : m.st === 'title' ? '처음 화면' : m.st === 'arrived' ? '도착 · ' + stN(m) : '달리는 중 · ' + stN(m));
+      const stLabel = (m) => (m.st === 'calib' ? '엔진 조정 중' : m.st === 'wait' ? '방장 기다리는 중' : m.st === 'title' ? '처음 화면' : m.st === 'arrived' ? '도착 · ' + stN(m) : '달리는 중 · ' + stN(m));
       const c = document.createElement('div'); c.className = 'roomList';
       Net.members.forEach((m) => {
         const row = document.createElement('div');
         const dot = document.createElement('span'); dot.className = 'dot ' + (m.st === 'calib' || m.st === 'title' ? 'wait' : 'ok');
-        row.append(dot, (m.id === Net.myId ? m.name + '(나)' : m.name) + ' — ' + stLabel(m));
+        row.append(dot, (m.id === Net.myId ? m.name + '(나)' : m.name) + (m.id === Net.hostId() ? ' 👑' : '') + ' — ' + stLabel(m));
         c.appendChild(row);
       });
       ui.roomInfo.append(a, c);
       const n = Net.members.length - 1;
-      const waitN = Net.members.filter((m) => m.id !== Net.myId && (m.st === 'calib' || m.st === 'title')).length;
       show(ui.friends, n > 0 || (On.on && On.peers.length > 0));
-      if (n > 0) ui.friends.textContent = '친구 ' + n + '명' + (waitN ? ' (' + waitN + '명 아직 준비 중)' : '') + (Net.voiceCount() ? ' · 목소리 ' + Net.voiceCount() : '');
-      ui.raceBtn.textContent = '같이 출발 · ' + (stageIdx + 1) + '번';
+      // 글 대신 아이콘: 사람 수 (내가 방장이면 왕관)
+      const key = (n + 1) + ':' + (Net.isHost() ? 1 : 0);
+      if (n > 0 && ui.friends.dataset.k !== key) {
+        ui.friends.dataset.k = key;
+        ui.friends.innerHTML = ICON_PEOPLE + '<span>' + (n + 1) + '</span>' + (Net.isHost() ? ICON_CROWN : '');
+        ui.friends.setAttribute('aria-label', '같이 하는 사람 ' + (n + 1) + '명' + (Net.isHost() ? ', 내가 방장' : ''));
+      }
     }
-    ui.voiceBtn.textContent = Net.voice ? '친구 소리 켬' : '친구 소리 끔';
     ui.voiceBtn.classList.toggle('off', !Net.voice);
+    ui.voiceBtn.setAttribute('aria-label', Net.voice ? '친구 소리 켬 (누르면 끔)' : '친구 소리 끔 (누르면 켬)');
   }
-  Net.onChange = () => { renderRoom(); if (state === 'arrived') renderBoard(); };
+  Net.onChange = () => { renderRoom(); checkHostChange(); if (state === 'arrived') renderBoard(); };
   Net.onHorn = (id) => { peerHorn.set('n:' + id, 0.9); Sfx.horn(); };
+  // ---------- 방장 따라가기 ----------
+  // 방에 2명 이상이면 방장(먼저 들어온 사람)만 스테이지를 정하고, 방장이 출발하면 모두 3·2·1 하고 같이 출발
+  function inGroup() { return Net.on && Net.members.length > 1; }
+  function follower() { return inGroup() && !Net.isHost(); }
+  function hostGo(stage) {
+    stopPlayback();
+    const r = Net.startRace(stage);
+    beginCount(r.stage, r.wait);
+  }
+  // 방장이 아닌 사람: 출발선에서 방장을 기다림
+  function waitHost() {
+    openSheet(null); stopPlayback(); Net.endRace();
+    show(ui.title, false); show(ui.calib, false); show(ui.arrive, false);
+    show(ui.hud, true); show(ui.pad, mode === 'buttons'); show(ui.recal, mode === 'mic');
+    const h = Net.members.find((m) => m.id === Net.hostId());
+    if (h && h.stage != null && h.stage >= 0 && h.stage < BB.STAGES.length) stageIdx = h.stage;
+    loadStage(stageIdx);
+    state = 'wait';
+    renderRoom();
+  }
+  function renderArriveBtns() {
+    const f = follower();
+    show(ui.retry, !f); show(ui.next, !f); show(ui.waitHost, f);
+  }
+  // 방장이 나가서 내가 방장이 됐는데 아무도 출발을 안 시키고 기다리는 중이면 바로 출발
+  let wasHost = true;
+  function checkHostChange() {
+    const h = !follower();
+    if (h && !wasHost && state === 'wait') hostGo(stageIdx);
+    wasHost = h;
+  }
   let pendingStart = null;   // 보정 중에 받은 같이 출발
   Net.onStart = ({ stage, wait }) => {
     stage = Math.min(stage, BB.STAGES.length - 1);
-    if (!started) { ui.roomMsg.textContent = ui.titleMsg.textContent = '친구가 출발해요!\n「시작」을 눌러 줘'; stageIdx = stage; loadStage(stage); buildTitle(); return; }
+    if (!started) { ui.roomMsg.textContent = ui.titleMsg.textContent = '방장이 출발해요!\n「시작」을 눌러 줘'; stageIdx = stage; loadStage(stage); buildTitle(); return; }
     if (state === 'calib') { pendingStart = { stage, at: performance.now() + wait }; return; }
     beginCount(stage, wait);
   };
@@ -565,7 +605,7 @@
     ui.roomMsg.textContent = '연결하는 중…';
     const r = await Net.join(code, nickVal(), color);
     joining = false; ui.roomMake.disabled = ui.roomJoin.disabled = false;
-    ui.roomMsg.textContent = r.ok ? '친구에게 링크를 보내 줘\n다 모이면 게임 안에서 「같이 출발」!' : r.why;
+    ui.roomMsg.textContent = r.ok ? (Net.isHost() ? '내가 방장이에요 👑\n친구에게 링크를 보내 줘' : '방장이 출발하면\n같이 출발해요') : r.why;
     // 친구 방에 들어간 거면 창을 닫고 바로 「시작」 누를 수 있게
     if (r.ok && joinedByCode && state === 'title') { openSheet(null); ui.titleMsg.textContent = '방 ' + Net.code + '에 들어왔어요!\n「시작」을 눌러 줘'; }
     renderRoom();
@@ -583,7 +623,6 @@
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, () => (ui.roomMsg.textContent = link));
     else ui.roomMsg.textContent = link;
   });
-  ui.raceBtn.addEventListener('click', () => { const r = Net.startRace(stageIdx); beginCount(r.stage, r.wait); });
   ui.voiceBtn.addEventListener('click', () => Net.setVoice(!Net.voice));
   ui.earBtn.addEventListener('click', () => {
     earPref = earOn() ? 'off' : 'on'; store.set('ear', earPref);
@@ -731,7 +770,8 @@
     ui.stats.append(l1, l2);
 
     const last = stageIdx === BB.STAGES.length - 1;
-    ui.next.textContent = last ? '처음부터' : '다음 스테이지';
+    ui.next.setAttribute('aria-label', last ? '처음부터' : '다음 스테이지');
+    renderArriveBtns();
     show(ui.playback, false);
     renderBoard();
     setTimeout(() => { if (state === 'arrived') show(ui.arrive, true); }, 350);
@@ -744,6 +784,8 @@
     }
   }
   ui.next.addEventListener('click', () => {
+    if (follower()) return;
+    if (inGroup()) { const n = (stageIdx + 1) % BB.STAGES.length; store.set('lastStage', n); hostGo(n); return; }
     stopPlayback(); Net.endRace();
     show(ui.arrive, false);
     stageIdx = (stageIdx + 1) % BB.STAGES.length;
@@ -753,6 +795,8 @@
     nightIntro();
   });
   ui.retry.addEventListener('click', () => {
+    if (follower()) return;
+    if (inGroup()) { hostGo(stageIdx); return; }
     stopPlayback(); Net.endRace();
     show(ui.arrive, false);
     loadStage(stageIdx);
@@ -763,13 +807,13 @@
     if (!recUrl) return;
     if (playing) { stopPlayback(); return; }
     playing = new window.Audio(recUrl);
-    ui.playback.textContent = '그만 듣기';
+    ui.playback.classList.add('playing');
     playing.onended = stopPlayback;
     playing.play().catch(stopPlayback);
   });
   function stopPlayback() {
     if (playing) { try { playing.pause(); } catch (e) {} playing = null; }
-    ui.playback.textContent = '내 소리 듣기';
+    ui.playback.classList.remove('playing');
   }
 
   function renderBoard() {
@@ -1486,6 +1530,7 @@
   }
   function updateHints(dt) {
     if (state === 'count') { setBubble(countT > 3 ? '준비' : String(Math.ceil(countT)), 'boong'); return; }
+    if (state === 'wait') { setBubble('방장을 기다려요', ''); return; }
     if (flashT > 0) { flashT -= dt; setBubble(flashText, ''); return; }
     if (state !== 'play' || car.fallT >= 0) { setBubble('', ''); return; }
     const speed = Math.hypot(car.vx, car.vy);
@@ -1593,7 +1638,7 @@
     if (state === 'play' || state === 'arrived') On.sendState(car, color, state === 'arrived');
     Net.stage = stageIdx;
     Net.setStatus(state, stageIdx, hat);
-    if (state === 'play' || state === 'arrived' || state === 'count') Net.sendState(car, stageIdx, state === 'arrived', mode === 'mic' ? (A.out.type === 'boong' ? 1 : A.out.type === 'kkiik' ? 2 : 0) : 0);
+    if (state === 'play' || state === 'arrived' || state === 'count' || state === 'wait') Net.sendState(car, stageIdx, state === 'arrived', mode === 'mic' ? (A.out.type === 'boong' ? 1 : A.out.type === 'kkiik' ? 2 : 0) : 0);
     A.setCross(Net.on && Net.friendSound());
 
     // 카메라: 진행 방향을 위로

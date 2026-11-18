@@ -32,7 +32,7 @@
     <!-- 게임 중 HUD -->
     <div id="hud" class="hidden">
       <div class="hudLeft">
-        <div id="stageLabel">1</div>
+        <div id="stageLabel" aria-label="스테이지"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 21V4"/><path class="fill" d="M6 4h12l-2.5 4L18 12H6z"/></svg><span id="stageNum">1</span></div>
         <div class="pill">
           <span id="timer">0:00.0</span>
           <span id="starCount">★ 0</span>
@@ -47,9 +47,8 @@
           <button id="homeBtn" class="round icon" type="button" aria-label="처음 화면"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14" fill="none"/></svg></button>
         </div>
         <div id="roomHud" class="hudRow hidden">
-          <button id="raceBtn" class="chip go" type="button">같이 출발</button>
-          <button id="voiceBtn" class="chip" type="button">친구 소리 켬</button>
-          <button id="earBtn" class="chip" type="button">이어폰 안 씀</button>
+          <button id="voiceBtn" class="round icon tog" type="button" aria-label="친구 소리 켜기/끄기"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path class="on" d="M15.5 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/><path class="off" d="M16 9.5l5 5M21 9.5l-5 5"/></svg></button>
+          <button id="earBtn" class="round icon tog" type="button" aria-label="이어폰 씀/안 씀"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect class="fill" x="3" y="14" width="4.5" height="6.5" rx="1.8"/><rect class="fill" x="16.5" y="14" width="4.5" height="6.5" rx="1.8"/><path class="off" d="M3 3l18 18"/></svg></button>
         </div>
       </div>
     </div>
@@ -149,7 +148,7 @@
             </div>
           </div>
           <div id="roomMsg" class="msg"></div>
-          <div class="tip">이어폰을 끼면 게임 안에서<br>「이어폰 씀」인지 확인해 줘</div>
+          <div class="tip">이어폰을 끼면 게임 안<br>🎧 버튼이 켜졌는지 확인해 줘</div>
         </div>
         <button class="big sheetClose" type="button">닫기</button>
       </div>
@@ -214,11 +213,12 @@
       <div class="arriveText">도착</div>
       <div id="arriveStats" class="stats"></div>
       <div id="board" class="board hidden"></div>
-      <button id="playbackBtn" class="mid hidden" type="button">내 소리 듣기</button>
-      <div class="row">
-        <button id="retryBtn" class="mid ghost" type="button">다시</button>
-        <button id="nextBtn" class="big" type="button">다음 스테이지</button>
+      <div class="row arriveBtns">
+        <button id="playbackBtn" class="round icon bigIcon tog hidden" type="button" aria-label="내 소리 듣기"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M3.5 9.5h3L10 6v12l-3.5-3.5h-3z"/><path class="on" d="M13.5 9a4 4 0 0 1 0 6M16.5 6.5a7.5 7.5 0 0 1 0 11"/><rect class="fill off" x="14" y="8" width="7" height="8" rx="1.2"/></svg></button>
+        <button id="retryBtn" class="round icon bigIcon" type="button" aria-label="다시"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19 4.5v4h-4"/></svg></button>
+        <button id="nextBtn" class="round icon bigIcon go" type="button" aria-label="다음 스테이지"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M5 5.5v13L14 12z"/><path class="fill" d="M12 5.5v13L21 12z"/></svg></button>
       </div>
+      <div id="waitHost" class="msg hidden">방장을 기다려요</div>
     </div>
 
     <!-- 가로 화면 경고 -->

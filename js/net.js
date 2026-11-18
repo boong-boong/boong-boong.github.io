@@ -42,10 +42,20 @@
     const now = performance.now(), map = new Map();
     presenceList.forEach((m) => map.set(m.id, m));
     known.forEach((k, id) => { if (now - k.t < 8000) map.set(id, { ...(map.get(id) || {}), ...k, id }); });
-    if (N.on) map.set(myId, { id: myId, name: me.name, color: me.color, ready: me.ready, st: me.st || 'title', stage: me.stage ?? null, hat: me.hat || '' });
+    if (N.on) map.set(myId, { id: myId, name: me.name, color: me.color, ready: me.ready, st: me.st || 'title', stage: me.stage ?? null, hat: me.hat || '', since: me.since });
     N.members = [...map.values()];
   }
-  function sendHello() { if (N.on) send('hello', { id: myId, name: me.name, color: me.color, ready: !!me.ready, st: me.st || 'title', stage: me.stage ?? null, hat: me.hat || '' }); }
+  function sendHello() { if (N.on) send('hello', { id: myId, name: me.name, color: me.color, ready: !!me.ready, st: me.st || 'title', stage: me.stage ?? null, hat: me.hat || '', since: me.since }); }
+  // 방장: 방에 가장 먼저 들어온 사람 (방 만든 사람). 나가면 그다음에 들어온 사람
+  function hostId() {
+    let best = null;
+    for (const m of N.members) {
+      const a = m.since ?? Infinity, b = best ? (best.since ?? Infinity) : Infinity;
+      if (!best || a < b || (a === b && m.id < best.id)) best = m;
+    }
+    return best ? best.id : myId;
+  }
+  function isHost() { return !N.on || hostId() === myId; }
   setInterval(() => {
     if (!N.on) return;
     sendHello();
@@ -82,7 +92,7 @@
     if (code.length !== 4) return { ok: false, why: '방 코드는 4글자예요' };
     if (!window.supabase || !BB.NET_CONFIG) return { ok: false, why: '연결 준비가 안 됐어요\n인터넷을 확인해 줘' };
     await leave();
-    me = { name: str(name, 12) || '친구', color, ready: voiceReady };
+    me = { name: str(name, 12) || '친구', color, ready: voiceReady, since: Date.now() };
     if (!client) client = window.supabase.createClient(BB.NET_CONFIG.url, BB.NET_CONFIG.anonKey, { realtime: { params: { eventsPerSecond: 40 } } });
     ch = client.channel('boong-' + code, { config: { broadcast: { self: false }, presence: { key: myId } } });
 
@@ -120,7 +130,7 @@
       seen(p.id);
       known.set(p.id, {
         name: str(p.name, 12) || '친구', color: /^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : '#9b8cff', ready: !!p.ready,
-        st: ['title', 'calib', 'play', 'count', 'arrived'].includes(p.st) ? p.st : 'title', stage: num(p.stage), hat: str(p.hat, 10), t: performance.now(),
+        st: ['title', 'calib', 'play', 'count', 'arrived', 'wait'].includes(p.st) ? p.st : 'title', stage: num(p.stage), hat: str(p.hat, 10), since: num(p.since), t: performance.now(),
       });
       const had = N.members.some((m) => m.id === p.id);
       rebuildMembers(); syncVoice();
@@ -132,7 +142,7 @@
       presenceList = Object.entries(st).map(([id, arr]) => {
         const m = (arr && arr[0]) || {};
         return { id, name: str(m.name, 12) || '친구', color: /^#[0-9a-f]{6}$/i.test(m.color || '') ? m.color : '#9b8cff', ready: !!m.ready,
-          st: ['title', 'calib', 'play', 'count', 'arrived'].includes(m.st) ? m.st : 'title', stage: num(m.stage), hat: str(m.hat, 10) };
+          st: ['title', 'calib', 'play', 'count', 'arrived', 'wait'].includes(m.st) ? m.st : 'title', stage: num(m.stage), hat: str(m.hat, 10), since: num(m.since) };
       });
       const now = performance.now();
       presenceList.forEach((m) => lastSeen.set(m.id, now));
@@ -318,6 +328,6 @@
     return n;
   }
 
-  Object.assign(N, { friendSound, makeCode, cleanCode, join, leave, sendState, horn, startRace, finish, endRace, setStatus, enableVoice, setVoice, kickAudio, voiceCount, voiceStates, stage: 0, raceStage: null });
+  Object.assign(N, { hostId, isHost, friendSound, makeCode, cleanCode, join, leave, sendState, horn, startRace, finish, endRace, setStatus, enableVoice, setVoice, kickAudio, voiceCount, voiceStates, stage: 0, raceStage: null });
   BB.Net = N;
 })();
