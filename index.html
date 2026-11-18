@@ -55,13 +55,6 @@
       </div>
     </div>
 
-    <!-- 관전: 먼저 도착하면 달리는 친구 보기 -->
-    <div id="specBar" class="hidden">
-      <button id="specPrev" class="round icon" type="button" aria-label="앞 친구 보기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
-      <div class="specName"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle class="fill" cx="12" cy="12" r="3"/></svg><span id="specName"></span></div>
-      <button id="specNext" class="round icon" type="button" aria-label="다음 친구 보기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
-    </div>
-
     <!-- 버튼 모드 조작판 -->
     <div id="pad" class="hidden">
       <div class="padL">
@@ -220,6 +213,12 @@
     <!-- 도착 화면 -->
     <div id="arrive" class="screen hidden">
       <div class="arriveCard">
+        <!-- 관전: 먼저 도착하면 아직 달리는 친구 보기 (길을 가리지 않게 카드 안에) -->
+        <div id="specBar" class="hidden">
+          <button id="specPrev" class="round icon" type="button" aria-label="앞 친구 보기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <div class="specName"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle class="fill" cx="12" cy="12" r="3"/></svg><span id="specName"></span></div>
+          <button id="specNext" class="round icon" type="button" aria-label="다음 친구 보기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+        </div>
         <div class="arriveText">도착</div>
         <div id="arriveStats" class="stats"></div>
         <div id="board" class="board hidden"></div>

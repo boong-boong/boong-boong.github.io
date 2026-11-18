@@ -336,9 +336,11 @@ button.round.bigIcon.go svg .fill { fill: #fff; }
 .arriveCard button.round.bigIcon:not(.go) { background: #f1edf8; }
 #stageSheet { z-index: 6; }
 /* 관전 막대 */
-#specBar { position: absolute; left: 12px; top: calc(150px + env(safe-area-inset-top)); display: flex; align-items: center; gap: 8px; z-index: 3; }
-#specBar .specName { background: rgba(255,255,255,.92); border-radius: 999px; padding: 6px 14px; font-size: 17px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 0 rgba(0,0,0,.12); white-space: nowrap; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
-#specBar svg { width: 22px; height: 22px; fill: none; stroke: #3a3350; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+#specBar { display: flex; align-items: center; gap: 2px; background: #f1edf8; border-radius: 999px; padding: 2px; }
+#specBar.hidden { display: none; }
+#specBar button.round { width: 34px; height: 34px; background: transparent; box-shadow: none; }
+#specBar .specName { font-size: 16px; display: flex; align-items: center; gap: 5px; padding: 0 4px; white-space: nowrap; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+#specBar svg { width: 20px; height: 20px; fill: none; stroke: #3a3350; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 #specBar svg .fill { fill: #3a3350; }
 /* 친구 목록 */
 #friends { pointer-events: auto; border: 0; font: inherit; color: #3a3350; cursor: pointer; }
