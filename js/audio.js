@@ -194,6 +194,7 @@
     }
     if (out.ready) {
       raw = measure();
+      out.rawDb = raw.db;   // 부드럽게 하기 전 지금 크기 (쉿 구간처럼 바로 반응해야 할 때)
       // 크기: 빨리 올라가고 천천히 내려가게
       const a = raw.db > out.db ? 0.6 : 0.18;
       out.db += (raw.db - out.db) * a;

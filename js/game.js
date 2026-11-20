@@ -1185,10 +1185,20 @@
       if (q.awake > 0) q.awake -= dt;
       if (!inside) {
         q.noise = Math.max(0, (q.noise || 0) - dt);
+        q.hush = false; q.carry = 0;
         if (!q.passed && car.pi === 0 && car.s > q.s1) { q.passed = true; quietOK++; Sfx.star(); }
         continue;
       }
-      const noisy = type !== 'none' || myHorn > 0.5;
+      // 붕/끼익 판단은 소리가 끝나도 0.3초쯤 여운이 남음 → 들어가기 직전에 멈췄는데 곰이 깨던 문제.
+      // 쉿 구간에선 부드럽게 하기 전 '지금 크기'로 봄 (멈추면 바로 조용으로). 기준보다 조금 더 커야 소리로 침.
+      const mic = mode === 'mic' && !A.keys.boong && !A.keys.kkiik;
+      let noisy = mic ? A.out.ready && A.out.rawDb > A.cal.thrOn + 3 : type !== 'none';
+      noisy = noisy || myHorn > 0.5;
+      // 그래도 남는 방 울림 등: 들어온 뒤 처음 조용해질 때까지 0.25초만 봐줌
+      if (!q.hush) {
+        if (!noisy) q.hush = true;
+        else if (mic) { q.carry = (q.carry || 0) + dt; if (q.carry < 0.25) continue; }
+      }
       q.noise = noisy ? (q.noise || 0) + dt : Math.max(0, (q.noise || 0) - dt * 0.4);
       const speed = Math.hypot(car.vx, car.vy);
       car.zoneStill = speed < 4 ? car.zoneStill + dt : 0;
